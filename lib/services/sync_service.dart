@@ -9,6 +9,7 @@ import '../models/feature_flag.dart';
 import '../models/fuel_log.dart';
 import '../models/legal_acceptance.dart';
 import '../models/maintenance_record.dart';
+import '../models/complex_appearance.dart';
 import '../models/observation_photo.dart';
 import '../models/procedure.dart';
 import '../models/record_photo.dart';
@@ -158,6 +159,53 @@ class SyncService {
 
   /// Solo sube usuarios COMUNES. El usuario god nunca se sube a la
   /// nube, ni siquiera si se llama por error con uno: se ignora.
+  Future<void> pushAppearance(ComplexAppearance a) async {
+    if (!isCloudEnabled) return;
+    try {
+      await _firestore!
+          .collection('complex_appearances')
+          .doc(a.complexId)
+          .set(a.toMap())
+          .timeout(_kWriteTimeout);
+    } catch (_) {}
+  }
+
+  /// Trae la apariencia de la nube (gana la más reciente) y sube la local
+  /// si es más nueva.
+  Future<void> _mergeAppearances(DatabaseHelper db) async {
+    final local = {
+      for (final a in await db.getComplexAppearances()) a.complexId: a
+    };
+    final snap = await _firestore!.collection('complex_appearances').get();
+    final remote = <String, ComplexAppearance>{};
+    for (final doc in snap.docs) {
+      try {
+        remote[doc.id] = ComplexAppearance.fromMap(doc.data());
+      } catch (_) {}
+    }
+    for (final id in {...local.keys, ...remote.keys}) {
+      final l = local[id];
+      final r = remote[id];
+      if (l == null && r != null) {
+        await db.upsertComplexAppearance(r);
+      } else if (r == null && l != null) {
+        await _firestore!
+            .collection('complex_appearances')
+            .doc(id)
+            .set(l.toMap());
+      } else if (l != null && r != null) {
+        if (r.updatedAt.isAfter(l.updatedAt)) {
+          await db.upsertComplexAppearance(r);
+        } else if (l.updatedAt.isAfter(r.updatedAt)) {
+          await _firestore!
+              .collection('complex_appearances')
+              .doc(id)
+              .set(l.toMap());
+        }
+      }
+    }
+  }
+
   Future<void> pushProcedure(Procedure p) async {
     if (!isCloudEnabled) return;
     try {
@@ -538,6 +586,7 @@ class SyncService {
       await _mergeVehicles(db, tomb);
       await _mergeDrivers(db, tomb);
       await _mergeProcedures(db, tomb);
+      await _mergeAppearances(db);
 
       // A partir de acá, releemos vehículos/choferes ya fusionados,
       // para que el resto de la sincronización trabaje siempre sobre

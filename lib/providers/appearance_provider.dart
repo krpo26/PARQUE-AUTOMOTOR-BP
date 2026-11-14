@@ -13,7 +13,7 @@ import '../services/sync_service.dart';
 ///
 /// [activeComplexId] es el complejo en el que se está trabajando: la
 /// app aplica su apariencia mientras se está adentro, y vuelve a la
-/// general al volver a la pantalla de los 4 complejos.
+/// general al volver a la pantalla de inicio.
 class AppearanceProvider extends ChangeNotifier {
   final Map<String, ComplexAppearance> _items = {};
   final Map<String, Uint8List> _logos = {};

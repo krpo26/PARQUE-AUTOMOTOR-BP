@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/appearance_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/driver_provider.dart';
 import 'providers/feature_flags_provider.dart';
@@ -50,24 +51,11 @@ class FleetApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SyncProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()..load()),
         ChangeNotifierProvider(create: (_) => FeatureFlagsProvider()..load()),
+        ChangeNotifierProvider(create: (_) => AppearanceProvider()..load()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
-          TextTheme? textTheme;
-          switch (settings.font) {
-            case AppFont.roboto:
-              textTheme = GoogleFonts.robotoTextTheme();
-              break;
-            case AppFont.poppins:
-              textTheme = GoogleFonts.poppinsTextTheme();
-              break;
-            case AppFont.montserrat:
-              textTheme = GoogleFonts.montserratTextTheme();
-              break;
-            case AppFont.system:
-              textTheme = null;
-              break;
-          }
+          final TextTheme? textTheme = textThemeForFont(settings.font);
 
           ThemeData buildTheme(Brightness brightness) {
             var theme = ThemeData(
@@ -131,6 +119,7 @@ class _AppStartupState extends State<AppStartup> with WidgetsBindingObserver {
         context.read<DriverProvider>().load();
         context.read<FeatureFlagsProvider>().load();
         context.read<ProcedureProvider>().load();
+        context.read<AppearanceProvider>().load();
       });
       _checkAlertsOnOpen();
       _driveAutoSync();

@@ -5,6 +5,7 @@ import '../models/complex.dart';
 import '../models/driver.dart';
 import '../models/vehicle.dart';
 import '../providers/auth_provider.dart';
+import '../providers/appearance_provider.dart';
 import '../providers/driver_provider.dart';
 import '../providers/procedure_provider.dart';
 import '../providers/sync_provider.dart';
@@ -90,6 +91,7 @@ class _ComplexHomeScreenState extends State<ComplexHomeScreen> {
       drivers.setComplex(complex.id),
       procedures.setComplex(complex.id),
     ]);
+    if (mounted) context.read<AppearanceProvider>().setActive(complex.id);
     if (!context.mounted) return;
     await Navigator.push(
       context,

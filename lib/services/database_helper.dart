@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/audit_log.dart';
+import '../models/complex_appearance.dart';
 import '../models/driver.dart';
 import '../models/feature_flag.dart';
 import '../models/fuel_log.dart';
@@ -350,6 +351,16 @@ class DatabaseHelper {
           updated_at TEXT
         )
       ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS complex_appearances (
+          complex_id TEXT PRIMARY KEY,
+          theme_mode TEXT,
+          color_index INTEGER,
+          font_key TEXT,
+          logo_b64 TEXT,
+          updated_at TEXT
+        )
+      ''');
     }
   }
 
@@ -527,6 +538,17 @@ class DatabaseHelper {
         updated_at TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS complex_appearances (
+        complex_id TEXT PRIMARY KEY,
+        theme_mode TEXT,
+        color_index INTEGER,
+        font_key TEXT,
+        logo_b64 TEXT,
+        updated_at TEXT
+      )
+    ''');
   }
 
   // ---------------- DELETED RECORDS (borrados definitivos) ----------------
@@ -660,6 +682,20 @@ class DatabaseHelper {
         whereArgs: complexId == null ? null : [complexId],
         orderBy: 'full_name ASC');
     return rows.map((r) => Driver.fromMap(r)).toList();
+  }
+
+  // ---------------- APARIENCIA DEL COMPLEJO ----------------
+
+  Future<List<ComplexAppearance>> getComplexAppearances() async {
+    final db = await database;
+    final rows = await db.query('complex_appearances');
+    return rows.map((r) => ComplexAppearance.fromMap(r)).toList();
+  }
+
+  Future<int> upsertComplexAppearance(ComplexAppearance a) async {
+    final db = await database;
+    return db.insert('complex_appearances', a.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   // ---------------- PROCEDURES (trámites) ----------------
