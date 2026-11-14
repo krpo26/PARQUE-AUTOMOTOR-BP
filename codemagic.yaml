@@ -7,7 +7,11 @@ workflows:
     # perfectamente para compilar APK de Android.
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
+      # Versión FIJA de Flutter. Flutter 3.50 (el nuevo "stable") exige
+      # Gradle 9.3.1 / AGP 9.1.1 / Kotlin 2.4.10; este proyecto usa
+      # Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20, que Flutter 3.47.x acepta.
+      # Para subir de versión hay que migrar antes el Gradle del proyecto.
+      flutter: 3.47.9
       java: 17
       # Grupo de variables seguras creado en Codemagic (Settings del
       # proyecto → Environment variables → grupo "keystore_credentials"):

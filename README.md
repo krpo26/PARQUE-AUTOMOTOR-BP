@@ -305,3 +305,12 @@ iniciar sesión con la misma cuenta y tocar ese botón.
 
 Al bajar un respaldo nunca se pisa un vehículo/chofer que el dispositivo
 ya tenga más nuevo, y nada de lo borrado definitivamente vuelve a aparecer.
+
+## Versión de Flutter en Codemagic
+
+`codemagic.yaml` fija **Flutter 3.47.9**. Con `stable` Codemagic pasó a
+Flutter 3.50, que exige Gradle 9.3.1, AGP 9.1.1 y Kotlin 2.4.10 (el proyecto
+usa Gradle 8.14, AGP 8.11.1 y Kotlin 2.2.20) y el build falla con
+"Your project's Gradle version (8.14.0) is lower than Flutter's minimum
+supported version of 9.3.1". Para pasar a 3.50 o posterior hay que migrar
+primero `android/` (Gradle, AGP y Kotlin integrado).
