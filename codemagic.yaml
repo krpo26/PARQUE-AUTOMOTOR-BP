@@ -1,0 +1,70 @@
+workflows:
+  android-apk:
+    name: PARQUE AUTOMOTOR - Android APK
+    max_build_duration: 60
+    # CORREGIDO: linux_x2 solo existe con facturación activada.
+    # mac_mini_m2 está incluida en el plan gratuito y sirve
+    # perfectamente para compilar APK de Android.
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      java: 17
+      # Grupo de variables seguras creado en Codemagic (Settings del
+      # proyecto → Environment variables → grupo "keystore_credentials"):
+      #   CM_KEYSTORE            → la keystore .jks codificada en base64
+      #   CM_KEYSTORE_PASSWORD   → contraseña de la keystore
+      #   CM_KEY_ALIAS           → alias de la clave (fleetapp)
+      #   CM_KEY_PASSWORD        → contraseña de la clave
+      # Todas marcadas "Secure". Nunca se suben a GitHub.
+      groups:
+        - keystore_credentials
+      vars:
+        PACKAGE_NAME: "com.fleetapp.app"
+    scripts:
+      - name: Ubicar proyecto Flutter
+        script: |
+          # Funciona tanto si pubspec.yaml está en la raíz del repo
+          # como si está dentro de la carpeta fleet_app/.
+          if [ -f "$CM_BUILD_DIR/pubspec.yaml" ]; then
+            APP_DIR="$CM_BUILD_DIR"
+          elif [ -f "$CM_BUILD_DIR/fleet_app/pubspec.yaml" ]; then
+            APP_DIR="$CM_BUILD_DIR/fleet_app"
+          else
+            echo "ERROR: no se encontró pubspec.yaml"; exit 1
+          fi
+          echo "APP_DIR=$APP_DIR" >> $CM_ENV
+          echo "Proyecto Flutter en: $APP_DIR"
+      - name: Preparar firma de release
+        script: |
+          cd $APP_DIR
+          if [ -n "$CM_KEYSTORE" ]; then
+            echo "$CM_KEYSTORE" | base64 --decode > $APP_DIR/android/app/fleetapp-release.keystore.jks
+            cat > $APP_DIR/android/key.properties <<EOF
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyPassword=$CM_KEY_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          storeFile=$APP_DIR/android/app/fleetapp-release.keystore.jks
+          EOF
+          else
+            echo "Aviso: no hay variables de keystore. Este build se firma con la key de debug y NO se instalará como actualización sobre versiones firmadas con la keystore propia."
+          fi
+      - name: Obtener dependencias
+        script: |
+          cd $APP_DIR
+          flutter pub get
+      - name: Compilar APK release
+        script: |
+          cd $APP_DIR
+          # Número de versión automático: segundos desde 1970. Siempre
+          # mayor que el anterior, así cada APK se instala encima del viejo.
+          flutter build apk --release --build-number=$(date +%s)
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+      - fleet_app/build/app/outputs/flutter-apk/*.apk
+    publishing:
+      email:
+        recipients:
+          - rglord87@gmail.com
+        notify:
+          success: true
+          failure: true
