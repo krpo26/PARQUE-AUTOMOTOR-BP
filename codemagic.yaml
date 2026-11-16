@@ -53,17 +53,6 @@ workflows:
           else
             echo "Aviso: no hay variables de keystore. Este build se firma con la key de debug y NO se instalará como actualización sobre versiones firmadas con la keystore propia."
           fi
-      - name: Mostrar huella SHA-1 (para Firebase y Google Drive)
-        script: |
-          KS="$APP_DIR/android/app/fleetapp-release.keystore.jks"
-          if [ -f "$KS" ]; then
-            echo "=============== HUELLAS DE LA KEYSTORE ==============="
-            keytool -list -v -keystore "$KS" -alias "$CM_KEY_ALIAS" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | grep -E "SHA1:|SHA256:" || true
-            echo "======================================================"
-            echo "Pegá SHA1 y SHA256 en Firebase > Configuración del proyecto > tu app Android > Agregar huella digital."
-          else
-            echo "No hay keystore de release en este build (se usa la de debug)."
-          fi
       - name: Obtener dependencias
         script: |
           cd $APP_DIR
@@ -166,17 +155,6 @@ workflows:
           keyAlias=$CM_KEY_ALIAS
           storeFile=$APP_DIR/android/app/fleetapp-release.keystore.jks
           EOF
-      - name: Mostrar huella SHA-1 (para Firebase y Google Drive)
-        script: |
-          KS="$APP_DIR/android/app/fleetapp-release.keystore.jks"
-          if [ -f "$KS" ]; then
-            echo "=============== HUELLAS DE LA KEYSTORE ==============="
-            keytool -list -v -keystore "$KS" -alias "$CM_KEY_ALIAS" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | grep -E "SHA1:|SHA256:" || true
-            echo "======================================================"
-            echo "Pegá SHA1 y SHA256 en Firebase > Configuración del proyecto > tu app Android > Agregar huella digital."
-          else
-            echo "No hay keystore de release en este build (se usa la de debug)."
-          fi
       - name: Obtener dependencias
         script: |
           cd $APP_DIR

@@ -6,7 +6,7 @@ alertas de mantenimiento por kilometraje y vencimiento de carnet.
 ## Puesta en marcha rápida (offline, sin configurar nada)
 
 ```bash
-# (ya estás en la carpeta del proyecto: la raíz del repositorio)
+cd fleet_app
 flutter pub get
 flutter run          # con un emulador/dispositivo Android o iOS conectado
 ```
@@ -165,7 +165,7 @@ instalar la nueva.
 
 ### Pasos comunes
 ```bash
-# (ya estás en la carpeta del proyecto: la raíz del repositorio)
+cd fleet_app
 flutter pub get
 ```
 
@@ -189,7 +189,7 @@ escribir a mano de forma confiable** es el proyecto binario
 en `lib/`):
 
 ```bash
-# (ya estás en la carpeta del proyecto: la raíz del repositorio)
+cd fleet_app
 flutter create --platforms=ios .   # completa solo lo que falta de iOS
 cd ios && pod install && cd ..
 open ios/Runner.xcworkspace        # configurar firma/Team en Xcode
@@ -214,13 +214,13 @@ agregar otro complejo en el futuro, sumalo en `lib/models/complex.dart`.
 
 Tarjeta **Trámites abiertos** del panel del complejo (se puede ocultar desde
 *Pestañas visibles*, clave `tab_procedures`). Cada trámite tiene **tipo**
-(pedido de service, de compra, de arreglo u otro escrito a mano), **fecha de
-inicio**, **fecha de finalización** (opcional), **estado** (Iniciado, En
-trámite, Finalizado, Rechazado), **nº de expediente**, **dónde se presentó**
-(opcional) y el **móvil** (de los ya cargados). Solo el usuario god crea, edita
-o elimina; los comunes solo ven. Salen en el reporte PDF, se sincronizan con
-Firestore (colección `procedures`: **volver a publicar `firestore.rules`**) y
-forman parte del respaldo (local y Google Drive).
+(pedido de service, de compras, de arreglo u otro escrito a mano), **fecha de
+inicio**, **estado** (Iniciado, En trámite, Finalizado, Rechazado) y **nº de
+expediente** (opcional). Solo el usuario god crea, edita o elimina; los
+comunes solo ven. Los trámites pertenecen a un complejo, salen en el reporte
+PDF, se sincronizan con Firestore (colección `procedures`: **hay que volver a
+publicar `firestore.rules`**) y forman parte del respaldo (local y Google
+Drive).
 
 ## Baja de móviles y choferes (con fecha y motivo)
 
@@ -243,21 +243,11 @@ con buscador y filtro por provincia, **Cerca de mí** (ordena por distancia
 sobre lo que se está viendo, hasta 120 estaciones) y un botón para buscar
 **cualquier estación cercana en Google Maps**.
 
-## Logos, temas y letras
-
-- **Logos** (Panel de administración → *Logos de la app*): logo de **inicio**
-  (ingreso, bienvenida, acceso de administrador) y logo de la **interfaz**
-  (barra superior). Se sincronizan con la nube. Cada complejo puede además
-  tener el suyo (*Apariencia de cada complejo*).
-- **Apariencia** (ícono de paleta): 14 **temas listos**, 4 **estilos**
-  (estándar, negro puro, alto contraste, papel), 31 **colores** y 44
-  **letras** con buscador.
-
 ## Base de datos local
 
-La base SQLite está en la **versión 19** (migración automática desde
-cualquier versión anterior): bajas con fecha/motivo, psicofísico, trámites
-(con móvil, fecha de finalización y dónde se presentó) y apariencia.
+La base SQLite está en la **versión 16** (migración automática desde
+cualquier versión anterior): agrega bajas con fecha/motivo, psicofísico y la
+tabla de trámites.
 
 ## Seguridad: keystore y código de activación
 
@@ -304,3 +294,27 @@ iniciar sesión con la misma cuenta y tocar ese botón.
 
 Al bajar un respaldo nunca se pisa un vehículo/chofer que el dispositivo
 ya tenga más nuevo, y nada de lo borrado definitivamente vuelve a aparecer.
+
+
+---
+
+## Novedades de la versión 1.5.0
+
+- **Logos configurables** (solo admin): *Apariencia → Logos de la app* o Panel de
+  administración → *Logos de la app*. Hay un **logo de inicio** (pantallas de
+  entrada) y un **logo de la interfaz** (pantalla principal). Se sincronizan con
+  la nube; "Volver al original" restaura el de fábrica.
+- **Más temas**: 12 *temas listos* (un toque cambia color + claro/oscuro), 12
+  colores nuevos (25 en total), **fondo negro puro** para modo oscuro y
+  **tamaño de letra** general (85 % a 140 %). Acceso desde el ícono de paleta de
+  la pantalla principal.
+- **Más fuentes**: 40 tipografías (18 nuevas).
+- **Trámites**: nuevo campo opcional **Dónde se presentó** (base de datos v19).
+- **Respaldo y Drive**: *Restaurar desde un archivo* ahora acepta archivos de
+  Google Drive (antes el filtro `.json` los dejaba deshabilitados), nuevo botón
+  *Guardar copia (Drive, Descargas…)* que no depende del login de Google, y la
+  conexión automática con Drive muestra qué falta configurar. Ver `DRIVE.md`.
+- Se incorporó todo lo de la rama "seguro": PBKDF2, reglas de Firestore/Storage,
+  App Check, notificaciones y workflow de Google Play (ver `SEGURIDAD.md`).
+
+Volvé a publicar `firestore.rules` (trámites con `presented_at`).

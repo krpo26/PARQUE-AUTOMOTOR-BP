@@ -97,5 +97,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo.png
-    - assets/images/logo_azul.png
     - assets/data/estaciones_ticket_car.json

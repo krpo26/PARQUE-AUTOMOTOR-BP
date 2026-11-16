@@ -22,7 +22,7 @@ romper la sincronización si se hace mal; leé la advertencia antes.
 | Nuevo workflow de Codemagic que compila el `.aab` y lo sube a la **pista interna de Google Play**. | `codemagic.yaml` (`android-play-internal`) |
 | `targetSdk` 34 → **36**: Google Play lo exige para apps nuevas y actualizaciones desde el 31/08/2026; con 34 rechazaría la subida. | `android/app/build.gradle` |
 | Se quitaron los permisos `SCHEDULE_EXACT_ALARM` (el código no usa alarmas exactas) y `READ_MEDIA_IMAGES` (la galería usa el selector del sistema); Play restringe ambos. | `AndroidManifest.xml` |
-| Versión de la app 1.1.0+5 → 1.5.0+11 (ver sección 8). | `pubspec.yaml` |
+| Versión de la app 1.1.0+5 → 1.4.2+10. | `pubspec.yaml` |
 | **Pantalla legal / carga:** tope de tiempo en el control de acceso, en la aceptación legal y en la sincronización, para que nada quede girando para siempre. | `auth_gate.dart`, `legal_terms_screen.dart`, `legal_terms_service.dart`, `sync_provider.dart` |
 | **App Check solo en la versión de Play** (`--dart-define=APP_CHECK=true`): en un APK instalado a mano Play Integrity no puede verificar la app y volvía lenta la nube. | `sync_service.dart`, `codemagic.yaml` |
 | **Notificaciones:** aviso y botón si el celular las tiene bloqueadas, prueba con mensaje del motivo, ícono de respaldo si falla el propio, y el selector de audio muestra todos los archivos (MP3, M4A, OGG, WAV, AAC, OPUS). | `notification_service.dart`, `notification_sound_service.dart`, `notification_settings_screen.dart`, `MainActivity.kt` |
@@ -300,49 +300,6 @@ crea unos nuevos; por eso la primera vez, los avisos de ese celular pueden
 mostrarse con otro nombre en los ajustes de Android.
 
 ---
-
-## 8. Novedades de la versión 1.5.0
-
-**Logos configurables** (Panel de administración → *Logos de la app*): se
-elige el **logo de inicio** (ingreso, bienvenida del complejo, acceso de
-administrador, configuración inicial) y el **logo de la interfaz** (barra
-superior del panel). Se guardan en la nube y llegan a los demás celulares al
-sincronizar. *Original* vuelve al logo de siempre. Un complejo con logo propio
-(*Apariencia de cada complejo*) mantiene prioridad sobre el de la interfaz.
-
-**Temas y letras** (ícono de paleta del panel → *Apariencia*):
-- **Temas listos** (14): un toque cambia modo, color y estilo juntos (Clásico,
-  Noche, Medianoche negro puro, Alto contraste, Papel, Bosque, Océano…).
-- **Estilo**: Estándar, Negro puro, Alto contraste y Papel/sepia.
-- **Color**: 31 colores (antes 15).
-- **Letras**: 44 (antes 22), con buscador en *Tipografía*. Las de Google se
-  bajan de internet la primera vez y quedan guardadas.
-
-**Trámites:** nuevo campo opcional **Dónde se presentó** (listado y PDF). La
-base pasa a la versión 19 (se actualiza sola). **Volvé a publicar
-`firestore.rules`** (el campo `presented_at` está en las reglas).
-
-**Respaldo y Google Drive:**
-- *Importar respaldo* ahora muestra **todos los archivos** (los de Drive
-  muchas veces no se identificaban como `.json` y quedaban ocultos).
-- Nuevo botón **Guardar respaldo en Drive o en el celular**: abre el selector
-  del sistema y se puede elegir Drive como destino, sin pasar por el inicio
-  de sesión de Google de la app.
-- Los errores de la conexión con Drive ahora dicen qué falta, y la tarjeta
-  tiene el botón **Ayuda para conectar Drive**.
-- Si *Elegir cuenta de Google Drive* falla, casi siempre es configuración de
-  Google (se hace una sola vez):
-  1. **Huella SHA-1.** El build de Codemagic imprime ahora un paso *Mostrar
-     huella SHA-1*: copiá el SHA1 y el SHA256 y pegalos en Firebase →
-     Configuración del proyecto → tu app Android → *Agregar huella digital*.
-     Si instalás desde Google Play, agregá también las huellas de *Firma de
-     la app* de Play Console. (El `google-services.json` actual tiene
-     `oauth_client` vacío: es la señal de que todavía no hay huellas.)
-  2. **Google Drive API** habilitada en Google Cloud (mismo proyecto).
-  3. **Pantalla de consentimiento de OAuth** con nombre y correo de
-     asistencia; si está en *Prueba*, agregá tu correo como usuario de prueba.
-  4. Opcional: bajar de nuevo el `google-services.json` de Firebase y
-     reemplazar el de `android/app/`.
 
 ## Checklist
 - [ ] Repo en privado
