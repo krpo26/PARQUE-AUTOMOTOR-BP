@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -12,8 +9,8 @@ import 'access_log_screen.dart';
 import 'audit_log_screen.dart';
 import '../notification_settings_screen.dart';
 import 'complex_appearance_screen.dart';
+import 'logo_settings_screen.dart';
 import 'feature_flags_screen.dart';
-import 'app_logos_screen.dart';
 
 /// Panel de administración avanzada. Solo llega acá el usuario god
 /// (el botón que la abre está oculto para usuarios comunes).
@@ -65,21 +62,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
-  Future<void> _saveToDriveOrDevice() async {
+  Future<void> _saveCopy() async {
     setState(() => _exporting = true);
     try {
-      final ok = await BackupService.instance.saveWithPicker();
+      final ok = await BackupService.instance.saveCopyToChosenLocation();
       final lastBackup = await BackupService.instance.getLastBackupAt();
       if (!mounted) return;
       setState(() => _lastBackupAt = lastBackup);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(ok
-              ? 'Respaldo guardado.'
-              : 'No se guardó el respaldo (cancelado).')));
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Respaldo guardado.')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo guardar el respaldo: $e')));
+        SnackBar(content: Text('No se pudo guardar el respaldo: $e')),
+      );
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -110,34 +109,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
     setState(() => _restoring = true);
     try {
-      // Se acepta cualquier tipo de archivo: los que vienen de Google Drive
-      // u otras apps muchas veces no se identifican como ".json" y el
-      // filtro por extensión los ocultaba.
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) return;
-      final bytes = result.files.first.bytes;
-      if (bytes == null) {
-        throw 'No se pudo leer el archivo. Si está en Drive, descargalo '
-            'primero al celular.';
-      }
-
-      final String jsonStr;
-      try {
-        jsonStr = utf8.decode(bytes);
-        if (jsonStr.trimLeft().isEmpty || !jsonStr.trimLeft().startsWith('{')) {
-          throw const FormatException();
-        }
-      } catch (_) {
-        throw 'El archivo elegido no es un respaldo (.json) válido.';
-      }
+      final jsonStr = await BackupService.instance.pickBackupJson();
+      if (jsonStr == null) return;
       await BackupService.instance.restoreFromJsonString(jsonStr);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Respaldo restaurado correctamente')),
+      );
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -185,27 +168,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 const SizedBox(height: 28),
                 const Divider(),
                 const SizedBox(height: 12),
-                const Text('Logos de la app',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                const Text(
-                  'Elegí el logo de las pantallas de inicio y el de la '
-                  'interfaz. Llegan a todos los celulares al sincronizar.',
-                  style: TextStyle(color: Colors.grey),
-                ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.image_outlined),
-                  title: const Text('Configurar logos'),
+                  title: const Text('Logos de la app'),
+                  subtitle: const Text('Logo de inicio y logo de la interfaz'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const AppLogosScreen()),
+                    MaterialPageRoute(
+                        builder: (_) => const LogoSettingsScreen()),
                   ),
                 ),
-                const SizedBox(height: 20),
-                const Divider(),
                 const SizedBox(height: 12),
                 const Text('Apariencia de cada complejo',
                     style:
@@ -268,9 +242,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _exporting ? null : _saveToDriveOrDevice,
+                  onPressed: _exporting ? null : _saveCopy,
                   icon: const Icon(Icons.save_alt_outlined),
-                  label: const Text('Guardar respaldo en Drive o en el celular'),
+                  label: const Text('Guardar copia (Drive, Descargas…)'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
@@ -281,7 +255,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           width: 16,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.download_outlined),
-                  label: const Text('Importar respaldo (Drive o celular)'),
+                  label: const Text('Restaurar desde un archivo'),
                 ),
                 const SizedBox(height: 8),
                 Text(

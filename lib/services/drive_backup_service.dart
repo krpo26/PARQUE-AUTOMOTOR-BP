@@ -25,61 +25,6 @@ const _kLegacyFileName = 'respaldo_parque_automotor.json';
 
 enum DrivePullResult { updated, notFound, notConfigured, failed }
 
-/// Convierte un error de Google Sign-In o de la API de Drive en un
-/// texto claro (en español) con lo que hay que hacer.
-String driveFriendlyError(Object e) {
-  final t = e.toString();
-  if (t.contains('ApiException: 10') || t.contains('DEVELOPER_ERROR')) {
-    return 'Google rechazó el inicio de sesión (error 10): falta registrar '
-        'la huella SHA-1 de la app en Firebase. Tocá "Ayuda para conectar '
-        'Drive" para ver los pasos.';
-  }
-  if (t.contains('ApiException: 12500') || t.contains('12500')) {
-    return 'Google no pudo iniciar sesión (error 12500): falta completar la '
-        'pantalla de consentimiento de OAuth (correo de asistencia) en '
-        'Google Cloud. Tocá "Ayuda para conectar Drive".';
-  }
-  if (t.contains('ApiException: 12501') ||
-      t.contains('sign_in_canceled') ||
-      t.contains('12501')) {
-    return 'Se canceló el inicio de sesión de Google.';
-  }
-  if (t.contains('ApiException: 7') ||
-      t.contains('network_error') ||
-      t.contains('SocketException') ||
-      t.contains('ClientException')) {
-    return 'No hay conexión a internet.';
-  }
-  if (t.contains('ApiException: 8')) {
-    return 'Google Play Services tuvo un error interno. Probá de nuevo en '
-        'unos segundos.';
-  }
-  if (t.contains('accessNotConfigured') ||
-      t.contains('has not been used in project') ||
-      t.contains('Drive API has not been used')) {
-    return 'La API de Google Drive no está habilitada en el proyecto de '
-        'Google Cloud. Tocá "Ayuda para conectar Drive".';
-  }
-  if (t.contains('insufficientPermissions') ||
-      t.contains('insufficient authentication scopes') ||
-      t.contains('Insufficient Permission')) {
-    return 'No diste el permiso de Drive. Tocá "Cambiar cuenta de Drive" y '
-        'aceptá el permiso para que la app guarde su carpeta de respaldo.';
-  }
-  if (t.contains('401') || t.contains('Invalid Credentials')) {
-    return 'La sesión de Google venció. Tocá "Cambiar cuenta de Drive" para '
-        'iniciar sesión otra vez.';
-  }
-  if (t.contains('403')) {
-    return 'Google Drive rechazó el pedido (403). Revisá la ayuda de '
-        'conexión de Drive.';
-  }
-  if (t.contains('sign_in_required')) {
-    return 'Falta iniciar sesión en Google. Tocá "Cambiar cuenta de Drive".';
-  }
-  return 'No se pudo completar: $e';
-}
-
 /// Respaldo en el Google Drive del ADMINISTRADOR.
 ///
 /// - SOLO el admin (usuario god) usa Drive: elige la cuenta de Google,
@@ -153,34 +98,17 @@ class DriveBackupService {
     await prefs.remove(_kFileIdKey);
   }
 
-  /// Cliente autenticado de Google. Con [interactive] = true (cuando el
-  /// admin tocó un botón) abre el inicio de sesión si la sesión silenciosa
-  /// no está disponible; sin eso (respaldo automático) nunca molesta.
-  Future<dynamic> _authClient({bool interactive = false}) async {
-    var account = _googleSignIn.currentUser;
-    if (account == null) {
-      try {
-        account = await _googleSignIn.signInSilently();
-      } catch (_) {
-        account = null;
-      }
-    }
-    if (account == null && interactive) {
-      account = await _googleSignIn.signIn();
-    }
+  Future<dynamic> _authClient() async {
+    final account =
+        _googleSignIn.currentUser ?? await _googleSignIn.signInSilently();
     if (account == null) return null;
-    final client = await _googleSignIn.authenticatedClient();
-    if (client == null && interactive) {
-      throw StateError('sign_in_required');
-    }
-    return client;
+    return _googleSignIn.authenticatedClient();
   }
 
   /// Sube (o actualiza) el respaldo en el Drive del admin.
-  Future<bool> uploadBackup(String jsonStr,
-      {bool retry = true, bool interactive = false}) async {
+  Future<bool> uploadBackup(String jsonStr, {bool retry = true}) async {
     if (!await isConfigured()) return false;
-    final client = await _authClient(interactive: interactive);
+    final client = await _authClient();
     if (client == null) return false;
 
     final prefs = await SharedPreferences.getInstance();
@@ -243,7 +171,7 @@ class DriveBackupService {
         // La carpeta o el archivo ya no existen: se arma todo de nuevo.
         await prefs.remove(_kFolderIdKey);
         await prefs.remove(_kFileIdKey);
-        return uploadBackup(jsonStr, retry: false, interactive: interactive);
+        return uploadBackup(jsonStr, retry: false);
       }
       rethrow;
     } finally {
@@ -257,9 +185,9 @@ class DriveBackupService {
   /// más nuevo que ya tenga este dispositivo. Si el celular no tiene
   /// guardado el ID del archivo (por ejemplo, es un celular nuevo), lo
   /// busca por nombre en el Drive.
-  Future<DrivePullResult> pullLatest({bool interactive = true}) async {
+  Future<DrivePullResult> pullLatest() async {
     if (!await isConfigured()) return DrivePullResult.notConfigured;
-    final client = await _authClient(interactive: interactive);
+    final client = await _authClient();
     if (client == null) return DrivePullResult.failed;
 
     final prefs = await SharedPreferences.getInstance();

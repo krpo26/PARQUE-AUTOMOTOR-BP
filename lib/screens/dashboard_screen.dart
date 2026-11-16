@@ -13,7 +13,6 @@ import '../providers/sync_provider.dart';
 import '../providers/vehicle_provider.dart';
 import '../services/pdf_report_service.dart';
 import '../services/sync_service.dart';
-import '../widgets/app_logo.dart';
 import '../widgets/entity_icons.dart';
 import 'procedures/procedure_list_screen.dart';
 import 'vehicles/fuel_stations_screen.dart';
@@ -49,19 +48,10 @@ class DashboardScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AppLogo(height: 30),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(complex.name,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  style: const TextStyle(fontSize: 14)),
-            ),
-          ],
-        ),
+        title: Text(complex.name,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            style: const TextStyle(fontSize: 14)),
         actions: [
           IconButton(
             tooltip: 'Apariencia',

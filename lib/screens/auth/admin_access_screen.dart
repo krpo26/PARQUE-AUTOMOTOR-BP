@@ -1,4 +1,5 @@
 
+import '../../widgets/app_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,7 +10,6 @@ import '../../services/auth_service.dart';
 import '../../services/password_hasher.dart';
 import '../complex_home_screen.dart';
 import 'setup_screen.dart';
-import '../../widgets/app_logo.dart';
 
 /// Se accede desde un botón aparte en la pantalla de login. Los usuarios
 /// comunes ingresan con usuario y contraseña directamente en el login
@@ -284,7 +284,7 @@ class _GodLoginFormState extends State<_GodLoginForm> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppLogo(height: 90, slot: AppLogoSlot.home),
+          const Center(child: AppLogo(height: 90, kind: AppLogoKind.login)),
           const SizedBox(height: 12),
           const Text(
             kAppTitle,

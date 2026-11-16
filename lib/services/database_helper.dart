@@ -366,8 +366,7 @@ class DatabaseHelper {
     if (oldVersion < 19) {
       // Trámites: dónde se presentó (opcional).
       try {
-        await db.execute(
-            "ALTER TABLE procedures ADD COLUMN presented_at TEXT NOT NULL DEFAULT ''");
+        await db.execute('ALTER TABLE procedures ADD COLUMN presented_at TEXT');
       } catch (_) {}
     }
   }
@@ -541,7 +540,7 @@ class DatabaseHelper {
         complex_id TEXT NOT NULL DEFAULT 'benjamin_paz',
         vehicle_id TEXT,
         end_date TEXT,
-        presented_at TEXT NOT NULL DEFAULT '',
+        presented_at TEXT,
         updated_at TEXT
       )
     ''');

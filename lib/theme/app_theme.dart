@@ -2,31 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../providers/settings_provider.dart';
 
-/// Arma el tema de la app a partir del color, la letra, el modo y el
-/// estilo de superficie (estándar, negro puro, alto contraste, papel).
+/// Arma el tema de la app a partir del color, la letra y el modo.
 ThemeData buildAppTheme({
   required Brightness brightness,
   required Color seed,
   required AppFont font,
-  AppThemeStyle style = AppThemeStyle.standard,
+  bool amoled = false,
 }) {
-  var scheme = ColorScheme.fromSeed(
-    seedColor: seed,
-    brightness: brightness,
-    contrastLevel: style == AppThemeStyle.highContrast ? 1.0 : 0.0,
-  );
-  Color? scaffold;
-  if (style == AppThemeStyle.amoled && brightness == Brightness.dark) {
-    scheme = scheme.copyWith(surface: Colors.black);
-    scaffold = Colors.black;
-  } else if (style == AppThemeStyle.paper && brightness == Brightness.light) {
-    const paper = Color(0xFFF4ECD8);
-    scheme = scheme.copyWith(surface: paper);
-    scaffold = paper;
-  }
   var theme = ThemeData(
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scaffold,
+    colorSchemeSeed: seed,
+    brightness: brightness,
     useMaterial3: true,
     appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
     filledButtonTheme: FilledButtonThemeData(
@@ -35,6 +20,15 @@ ThemeData buildAppTheme({
       ),
     ),
   );
+  if (amoled && brightness == Brightness.dark) {
+    theme = theme.copyWith(
+      scaffoldBackgroundColor: Colors.black,
+      canvasColor: Colors.black,
+      colorScheme: theme.colorScheme.copyWith(surface: Colors.black),
+      appBarTheme: const AppBarTheme(
+          centerTitle: true, elevation: 0, backgroundColor: Colors.black),
+    );
+  }
   final textTheme = textThemeForFont(font);
   if (textTheme != null) {
     theme = theme.copyWith(

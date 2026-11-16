@@ -13,30 +13,26 @@ import '../services/sync_service.dart';
 ///
 /// [activeComplexId] es el complejo en el que se está trabajando: la
 /// app aplica su apariencia mientras se está adentro, y vuelve a la
-/// general al volver a la pantalla de inicio.
+/// general al volver a la pantalla de los 4 complejos.
 class AppearanceProvider extends ChangeNotifier {
   final Map<String, ComplexAppearance> _items = {};
   final Map<String, Uint8List> _logos = {};
   String? activeComplexId;
 
-  /// Claves reservadas para los logos generales de la app (no son
-  /// complejos). Viajan por la misma sincronización que la apariencia.
-  static const String kHomeLogoKey = '_logo_inicio';
-  static const String kUiLogoKey = '_logo_interfaz';
+  /// Logos generales de la app (no pertenecen a un complejo). Se guardan
+  /// en la misma tabla y viajan por la misma sincronización.
+  static const String kLoginLogoId = 'app_login_logo';
+  static const String kInterfaceLogoId = 'app_interface_logo';
 
-  /// Logo de las pantallas de inicio (ingreso, bienvenida, administrador).
-  Uint8List? get homeLogo => _logos[kHomeLogoKey];
+  /// Logo de las pantallas de entrada (inicio de sesión, acceso admin).
+  Uint8List? get loginLogo => _logos[kLoginLogoId];
 
-  /// Logo de la interfaz (barra superior de las pantallas de trabajo).
-  Uint8List? get uiLogo => _logos[kUiLogoKey];
+  /// Logo de la interfaz (pantalla principal de la app).
+  Uint8List? get interfaceLogo => _logos[kInterfaceLogoId];
 
-  /// Guarda (o quita, con null) uno de los logos generales. Solo admin.
-  Future<void> setGlobalLogo(String key, Uint8List? bytes) {
-    return save(ComplexAppearance(
-      complexId: key,
-      logoBase64: bytes == null ? null : base64Encode(bytes),
-    ));
-  }
+  /// Guarda (o quita, con null) uno de los logos generales.
+  Future<void> saveGlobalLogo(String id, String? logoBase64) =>
+      save(ComplexAppearance(complexId: id, logoBase64: logoBase64));
 
   ComplexAppearance? of(String complexId) => _items[complexId];
   ComplexAppearance? get active =>

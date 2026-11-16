@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'dart:typed_data';
 
 import 'package:cross_file/cross_file.dart';
@@ -103,13 +104,73 @@ class BackupService {
     return file;
   }
 
+  /// Genera el respaldo y abre el "Guardar como" del sistema: ahí se puede
+  /// elegir Google Drive, Descargas o cualquier carpeta del celular. No
+  /// depende del inicio de sesión de Google de la app. Devuelve true si
+  /// se guardó, false si se canceló.
+  Future<bool> saveCopyToChosenLocation() async {
+    final data = await _buildBackupMap();
+    final bytes = Uint8List.fromList(utf8.encode(jsonEncode(data)));
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Guardar respaldo (podés elegir Google Drive)',
+      fileName: backupFileName(),
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      bytes: bytes,
+    );
+    if (path == null) return false;
+    await _markBackedUpNow();
+    return true;
+  }
+
+  /// Abre el selector de archivos del sistema (sirve para elegir un
+  /// respaldo guardado en Google Drive, Descargas, etc.) y devuelve su
+  /// contenido. null = canceló. Lanza [FormatException] con un mensaje
+  /// claro si el archivo no se puede leer o no es un respaldo.
+  ///
+  /// Se aceptan archivos de cualquier tipo a propósito: en Google Drive
+  /// los .json suelen figurar con otro tipo y, si se filtra por .json, el
+  /// selector los muestra deshabilitados (no se pueden tocar).
+  Future<String?> pickBackupJson() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return null;
+    final bytes = result.files.first.bytes;
+    if (bytes == null) {
+      throw const FormatException(
+          'No se pudo leer el archivo. Si está en Google Drive, esperá a que '
+          'termine de descargarse y probá de nuevo.');
+    }
+    final String text;
+    final dynamic decoded;
+    try {
+      text = utf8.decode(bytes);
+      decoded = jsonDecode(text);
+    } catch (_) {
+      throw const FormatException(
+          'El archivo elegido no es un respaldo válido (no es un .json).');
+    }
+    final looksLikeBackup = decoded is Map &&
+        (decoded.containsKey('vehicles') ||
+            decoded.containsKey('drivers') ||
+            decoded.containsKey('procedures'));
+    if (!looksLikeBackup) {
+      throw const FormatException(
+          'El archivo no parece un respaldo de P.A.B.P. Elegí uno que se '
+          'llame "respaldo P.A.B.P ... .json".');
+    }
+    return text;
+  }
+
   /// Genera el respaldo y abre el selector para compartirlo/guardarlo.
   Future<void> exportAndShare() async {
     final data = await _buildBackupMap();
     final file = await _writeToTempFile(data);
     await _markBackedUpNow();
     await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'application/json')],
+      [XFile(file.path)],
       text: 'Respaldo P.A.B.P — '
           '${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
     );
@@ -155,26 +216,9 @@ class BackupService {
   /// Sube el respaldo completo al Google Drive que eligió el admin
   /// (si este dispositivo ya tiene una cuenta elegida). El archivo es
   /// privado, solo del admin.
-  Future<bool> backupToDrive({bool interactive = false}) async {
+  Future<bool> backupToDrive() async {
     final data = await _buildBackupMap();
-    return DriveBackupService.instance
-        .uploadBackup(jsonEncode(data), interactive: interactive);
-  }
-
-  /// Abre el selector de guardado del sistema para elegir DÓNDE guardar el
-  /// respaldo: el celular, Google Drive u otra app de archivos. Devuelve
-  /// false si se canceló.
-  Future<bool> saveWithPicker() async {
-    final data = await _buildBackupMap();
-    final bytes = Uint8List.fromList(utf8.encode(jsonEncode(data)));
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Guardar respaldo',
-      fileName: backupFileName(),
-      bytes: bytes,
-    );
-    if (path == null) return false;
-    await _markBackedUpNow();
-    return true;
+    return DriveBackupService.instance.uploadBackup(jsonEncode(data));
   }
 
   Future<void> _markBackedUpNow() async {

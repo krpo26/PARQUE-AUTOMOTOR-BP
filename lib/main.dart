@@ -85,14 +85,21 @@ class FleetApp extends StatelessWidget {
               brightness: Brightness.light,
               seed: seed,
               font: font,
-              style: settings.themeStyle,
             ),
             darkTheme: buildAppTheme(
               brightness: Brightness.dark,
               seed: seed,
               font: font,
-              style: settings.themeStyle,
+              amoled: settings.amoled,
             ),
+            builder: (context, child) {
+              final mq = MediaQuery.of(context);
+              return MediaQuery(
+                data: mq.copyWith(
+                    textScaler: TextScaler.linear(settings.textScale)),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
             home: const AppStartup(),
           );
         },

@@ -1,60 +1,44 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/appearance_provider.dart';
 import '../providers/feature_flags_provider.dart';
 
-/// Dónde se muestra el logo.
-/// - [home]: pantallas de inicio (ingreso, bienvenida, administrador).
-/// - [ui]: interfaz de trabajo (barra superior, tableros).
-enum AppLogoSlot { home, ui }
+/// Dónde se usa el logo: en las pantallas de entrada o en la interfaz.
+enum AppLogoKind { login, interface }
 
-/// Logo institucional de la app. El administrador puede cargar uno propio
-/// para el inicio y otro para la interfaz (Panel de administración →
-/// Logos de la app). Si no cargó ninguno, se usa el logo original.
-/// En la interfaz, si el complejo en el que se trabaja tiene logo propio,
-/// ese tiene prioridad.
+/// Logo institucional de la app. Orden de prioridad:
+/// 1) el logo general que cargó el admin para ese lugar (inicio o
+///    interfaz), 2) el logo propio del complejo, 3) el logo de fábrica.
 class AppLogo extends StatelessWidget {
   final double height;
+  final AppLogoKind kind;
 
-  /// Complejo cuyo logo mostrar (solo en [AppLogoSlot.ui]). Si no se
-  /// indica, se usa el complejo en el que se está trabajando.
+  /// Complejo cuyo logo mostrar. Si no se indica, se usa el complejo
+  /// en el que se está trabajando (si hay uno).
   final String? complexId;
-  final AppLogoSlot slot;
 
   const AppLogo({
     super.key,
     required this.height,
+    this.kind = AppLogoKind.interface,
     this.complexId,
-    this.slot = AppLogoSlot.ui,
   });
 
   @override
   Widget build(BuildContext context) {
     final appearance = context.watch<AppearanceProvider>();
-    Uint8List? bytes;
-    if (slot == AppLogoSlot.home) {
-      bytes = appearance.homeLogo;
-    } else {
+    var bytes = kind == AppLogoKind.login
+        ? appearance.loginLogo
+        : appearance.interfaceLogo;
+    if (bytes == null) {
       final id = complexId ?? appearance.activeComplexId;
       if (id != null) bytes = appearance.logoOf(id);
-      bytes ??= appearance.uiLogo;
+    }
+    if (bytes != null) {
+      return Image.memory(bytes, height: height, fit: BoxFit.contain);
     }
     final asset = context.watch<FeatureFlagsProvider>().logoAsset;
-    final fallback = Image.asset(
-      asset,
-      height: height,
-      errorBuilder: (_, __, ___) =>
-          Image.asset('assets/images/logo.png', height: height),
-    );
-    if (bytes == null) return fallback;
-    return Image.memory(
-      bytes,
-      height: height,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => fallback,
-    );
+    return Image.asset(asset, height: height);
   }
 }

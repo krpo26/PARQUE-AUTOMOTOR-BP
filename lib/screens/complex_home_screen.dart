@@ -1,3 +1,4 @@
+import '../widgets/app_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -17,7 +18,6 @@ import 'auth/login_screen.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
 import 'users/user_management_screen.dart';
-import '../widgets/app_logo.dart';
 
 /// Pantalla principal con la única sección del complejo (Benjamín Paz).
 /// Abre el panel de trabajo (vehículos, choferes, trámites, alertas).
@@ -156,6 +156,14 @@ class _ComplexHomeScreenState extends State<ComplexHomeScreen> {
               ),
             ),
           IconButton(
+            tooltip: 'Apariencia (temas, letra y logos)',
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+          IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -174,7 +182,7 @@ class _ComplexHomeScreenState extends State<ComplexHomeScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Center(
-            child: const AppLogo(height: 90, slot: AppLogoSlot.home),
+            child: const AppLogo(height: 90, kind: AppLogoKind.interface),
           ),
           const SizedBox(height: 8),
           Text(

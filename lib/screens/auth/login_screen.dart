@@ -1,3 +1,4 @@
+import '../../widgets/app_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,7 +8,6 @@ import '../../services/legal_terms_service.dart';
 import '../complex_home_screen.dart';
 import '../legal_terms_screen.dart';
 import 'admin_access_screen.dart';
-import '../../widgets/app_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool justCreated;
@@ -84,7 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppLogo(height: 100, slot: AppLogoSlot.home),
+                  const Center(
+                      child: AppLogo(height: 100, kind: AppLogoKind.login)),
                   const SizedBox(height: 12),
                   const Text(
                     kAppTitle,

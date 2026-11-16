@@ -1,55 +1,92 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
-import 'font_picker_screen.dart';
+import 'admin/logo_settings_screen.dart';
 import 'notification_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  bool _isActive(SettingsProvider s, ThemePreset p) =>
-      s.themeMode == p.mode &&
-      s.colorIndex == p.colorIndex &&
-      s.themeStyle == p.style;
-
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    const title = TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
+    final isGod = context.watch<AuthProvider>().isGod;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Apariencia')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Temas listos', style: title),
-          const SizedBox(height: 4),
-          const Text(
-            'Un toque cambia modo, color y estilo juntos. Después podés '
-            'ajustar cada cosa por separado.',
-            style: TextStyle(color: Colors.grey),
-          ),
+          if (isGod) ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Logos de la app'),
+              subtitle: const Text('Logo de inicio y logo de la interfaz'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LogoSettingsScreen()),
+              ),
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+          ],
+          const Text('Temas listos',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final p in kThemePresets)
-                ChoiceChip(
-                  avatar: CircleAvatar(
-                    radius: 8,
-                    backgroundColor: kColorOptions[p.colorIndex].color,
+            spacing: 10,
+            runSpacing: 10,
+            children: kThemePresets.map((p) {
+              final selected = settings.colorIndex == p.colorIndex &&
+                  settings.themeMode == p.mode &&
+                  settings.amoled == p.amoled;
+              final dark = p.mode == ThemeMode.dark;
+              return GestureDetector(
+                onTap: () => settings.applyPreset(p),
+                child: Container(
+                  width: 104,
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: p.amoled
+                        ? Colors.black
+                        : (dark ? const Color(0xFF1E1E22) : Colors.white),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected ? p.color : Colors.grey.shade400,
+                      width: selected ? 3 : 1,
+                    ),
                   ),
-                  label: Text(p.name),
-                  tooltip: p.description,
-                  selected: _isActive(settings, p),
-                  onSelected: (_) => settings.applyPreset(p),
+                  child: Column(
+                    children: [
+                      Container(
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: p.color,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        p.name,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: dark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-            ],
+              );
+            }).toList(),
           ),
           const SizedBox(height: 28),
-          const Text('Modo', style: title),
+          const Text('Tema',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           SegmentedButton<ThemeMode>(
             segments: const [
@@ -70,22 +107,35 @@ class SettingsScreen extends StatelessWidget {
             onSelectionChanged: (selection) =>
                 settings.setThemeMode(selection.first),
           ),
-          const SizedBox(height: 28),
-          const Text('Estilo', style: title),
-          const SizedBox(height: 4),
-          ...AppThemeStyle.values.map(
-            (st) => RadioListTile<AppThemeStyle>(
-              contentPadding: EdgeInsets.zero,
-              title: Text(st.label),
-              value: st,
-              groupValue: settings.themeStyle,
-              onChanged: (v) {
-                if (v != null) settings.setThemeStyle(v);
-              },
-            ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Fondo negro puro (modo oscuro)'),
+            subtitle: const Text('Ahorra batería en pantallas OLED'),
+            value: settings.amoled,
+            onChanged: settings.setAmoled,
           ),
           const SizedBox(height: 20),
-          const Text('Color institucional', style: title),
+          const Text('Tamaño de letra',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Row(
+            children: [
+              const Text('A', style: TextStyle(fontSize: 12)),
+              Expanded(
+                child: Slider(
+                  min: 0.85,
+                  max: 1.4,
+                  divisions: 11,
+                  value: settings.textScale,
+                  label: '${(settings.textScale * 100).round()} %',
+                  onChanged: settings.setTextScale,
+                ),
+              ),
+              const Text('A', style: TextStyle(fontSize: 22)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('Color institucional',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -95,55 +145,41 @@ class SettingsScreen extends StatelessWidget {
               final selected = settings.colorIndex == i;
               return GestureDetector(
                 onTap: () => settings.setColorIndex(i),
-                child: SizedBox(
-                  width: 64,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: option.color,
-                          shape: BoxShape.circle,
-                          border: selected
-                              ? Border.all(color: Colors.grey, width: 3)
-                              : null,
-                        ),
-                        child: selected
-                            ? const Icon(Icons.check, color: Colors.white)
+                child: Column(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: option.color,
+                        shape: BoxShape.circle,
+                        border: selected
+                            ? Border.all(color: Colors.black, width: 3)
                             : null,
                       ),
-                      const SizedBox(height: 4),
-                      Text(option.name,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 11)),
-                    ],
-                  ),
+                      child: selected
+                          ? const Icon(Icons.check, color: Colors.white)
+                          : null,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(option.name, style: const TextStyle(fontSize: 11)),
+                  ],
                 ),
               );
             }),
           ),
           const SizedBox(height: 28),
-          const Text('Tipografía', style: title),
-          const SizedBox(height: 4),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.text_fields),
-            title: Text(settings.font.label),
-            subtitle: Text(
-              'Parque Automotor Benjamín Paz · 6185',
-              style: textThemeForFont(settings.font)?.bodyMedium,
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const FontPickerScreen()),
-            ),
-          ),
+          const Text('Tipografía',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(
-            '${AppFont.values.length} letras para elegir, con buscador.',
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ...AppFont.values.map(
+            (f) => RadioListTile<AppFont>(
+              contentPadding: EdgeInsets.zero,
+              title: Text(f.label, style: textThemeForFont(f)?.bodyLarge),
+              value: f,
+              groupValue: settings.font,
+              onChanged: (v) => settings.setFont(v!),
+            ),
           ),
           const SizedBox(height: 16),
           const Divider(),

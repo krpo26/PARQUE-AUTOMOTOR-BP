@@ -49,7 +49,29 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  String _friendlyError(Object e) => driveFriendlyError(e);
+  String _friendlyError(Object e) {
+    final t = e.toString();
+    if (t.contains('ApiException: 12501') || t.contains('sign_in_canceled')) {
+      return 'Se canceló la elección de cuenta.';
+    }
+    if (t.contains('ApiException: 10') ||
+        t.contains('DEVELOPER_ERROR') ||
+        t.contains('ApiException: 12500') ||
+        t.contains('sign_in_failed')) {
+      return 'Google rechazó el inicio de sesión: falta registrar la huella '
+          'SHA-1 de la app (paso 1 de "¿No conecta con Google Drive?" '
+          'más abajo). Mientras tanto podés usar "Guardar copia" y '
+          '"Restaurar desde un archivo", que no necesitan Google.';
+    }
+    if (t.contains('403') || t.contains('accessNotConfigured')) {
+      return 'La API de Google Drive no está habilitada en el proyecto de '
+          'Google Cloud (ver README).';
+    }
+    if (t.contains('network') || t.contains('SocketException')) {
+      return 'No hay conexión a internet.';
+    }
+    return 'No se pudo completar: $e';
+  }
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
@@ -65,8 +87,13 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
 
   Future<void> _chooseAccount() => _run(() async {
         final email = await DriveBackupService.instance.chooseAccount();
-        if (email == null) return;
-        final ok = await BackupService.instance.backupToDrive(interactive: true);
+        if (email == null) {
+          _toast('No se eligió ninguna cuenta. Si Google no mostró la '
+              'lista de cuentas, falta registrar la huella SHA-1 (ver '
+              '"¿No conecta con Google Drive?" más abajo).');
+          return;
+        }
+        final ok = await BackupService.instance.backupToDrive();
         _toast(ok
             ? 'Listo: el respaldo se guarda en el Drive de $email'
             : 'Cuenta elegida, pero no se pudo subir el primer respaldo. '
@@ -74,11 +101,10 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
       });
 
   Future<void> _backupNow() => _run(() async {
-        final ok = await BackupService.instance.backupToDrive(interactive: true);
+        final ok = await BackupService.instance.backupToDrive();
         _toast(ok
             ? 'Respaldo subido a Google Drive'
-            : 'No se pudo subir. Revisá la conexión o tocá "Cambiar cuenta '
-                'de Drive".');
+            : 'No se pudo subir (¿sin sesión de Google o sin internet?)');
       });
 
   Future<void> _pullNow() => _run(() async {
@@ -102,44 +128,6 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
             break;
         }
       });
-
-  Future<void> _showHelp() {
-    return showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Ayuda para conectar Drive'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Si al elegir la cuenta aparece un error, casi siempre falta '
-            'configurar Google. Se hace una sola vez, en el navegador:\n\n'
-            '1) Huella SHA-1. En Codemagic, abrí el build y buscá el paso '
-            '"Mostrar huella SHA-1": ahí figura. En la consola de Firebase '
-            '(Configuración del proyecto → tu app Android → Agregar huella '
-            'digital) pegá el SHA-1 y el SHA-256. Si instalás desde Google '
-            'Play, agregá también las huellas de "Firma de la app" que '
-            'muestra Play Console.\n\n'
-            '2) API de Drive. En Google Cloud Console (mismo proyecto) → '
-            'APIs y servicios → Biblioteca → "Google Drive API" → Habilitar.\n\n'
-            '3) Pantalla de consentimiento. En Google Cloud → APIs y '
-            'servicios → Pantalla de consentimiento de OAuth: completá el '
-            'nombre de la app y el correo de asistencia. Si está en modo '
-            '"Prueba", agregá tu correo como usuario de prueba (o pasala a '
-            '"En producción").\n\n'
-            '4) Volvé a la app y tocá "Elegir cuenta de Google Drive". Si '
-            'Google pide permiso, aceptá el acceso a Drive.\n\n'
-            'Mientras tanto, el respaldo manual funciona sin Google: '
-            '"Guardar respaldo en Drive o en el celular" e "Importar '
-            'respaldo" en esta misma pantalla.',
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar')),
-        ],
-      ),
-    );
-  }
 
   Future<void> _disconnect() async {
     final ok = await showDialog<bool>(
@@ -202,11 +190,6 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
               ? 'Elegir cuenta de Google Drive'
               : 'Cambiar cuenta de Drive'),
         ),
-        TextButton.icon(
-          onPressed: _showHelp,
-          icon: const Icon(Icons.help_outline),
-          label: const Text('Ayuda para conectar Drive'),
-        ),
         if (_email != null) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
@@ -225,6 +208,37 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
             child: const Text('Desconectar Drive de este dispositivo'),
           ),
         ],
+        const SizedBox(height: 8),
+        const ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.only(bottom: 8),
+          title: Text('¿No conecta con Google Drive?',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Sin Google Drive igual podés respaldar y restaurar: usá '
+                '"Guardar copia" (elegí Drive, Descargas, etc.) y '
+                '"Restaurar desde un archivo" (acepta archivos de Drive).\n\n'
+                'Para que la conexión automática funcione hay que hacer '
+                'esto UNA vez en la consola de Google:\n'
+                '1) Firebase → Configuración del proyecto → tu app Android '
+                '(com.fleetapp.app) → Agregar huella digital: pegá el SHA-1 '
+                'de la keystore con la que se firma la app (y el de la clave '
+                'de firma de Google Play si la instalás desde Play).\n'
+                '2) Google Cloud → APIs y servicios → Biblioteca → '
+                'habilitá "Google Drive API".\n'
+                '3) Google Cloud → Pantalla de consentimiento de OAuth: '
+                'configurala (tipo Externo) y, si está en modo "Prueba", '
+                'agregá el mail del administrador como usuario de prueba.\n'
+                '4) Volvé a compilar e instalar la app. (Guía completa en '
+                'DRIVE.md.)',
+                style: TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
