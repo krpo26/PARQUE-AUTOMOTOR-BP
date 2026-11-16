@@ -6,7 +6,7 @@ alertas de mantenimiento por kilometraje y vencimiento de carnet.
 ## Puesta en marcha rápida (offline, sin configurar nada)
 
 ```bash
-cd fleet_app
+# (ya estás en la carpeta del proyecto: la raíz del repositorio)
 flutter pub get
 flutter run          # con un emulador/dispositivo Android o iOS conectado
 ```
@@ -128,20 +128,10 @@ chip del Dashboard muestra "Modo offline (base local)".
    / `GoogleService-Info.plist` donde corresponde.
 4. Descomentá las 2 líneas de `com.google.gms.google-services` en
    `android/settings.gradle` y `android/app/build.gradle`.
-5. En Firestore, configurá reglas de seguridad (ejemplo básico, ajustar
-   según necesidad — esto NO incluye autenticación de Firebase, así
-   que para producción real conviene sumar Firebase Auth o restringir
-   por otro medio):
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /{document=**} {
-         allow read, write: if true; // reemplazar por reglas reales
-       }
-     }
-   }
-   ```
+5. Publicá las reglas de seguridad incluidas: `firestore.rules` (Firestore) y
+   `storage.rules` (Storage). **Nunca uses reglas con `if true`.** Leé
+   `SEGURIDAD.md` para los pasos completos (App Check, claves, etc.).
+
 
 ## Compilar e instalar
 
@@ -175,7 +165,7 @@ instalar la nueva.
 
 ### Pasos comunes
 ```bash
-cd fleet_app
+# (ya estás en la carpeta del proyecto: la raíz del repositorio)
 flutter pub get
 ```
 
@@ -199,7 +189,7 @@ escribir a mano de forma confiable** es el proyecto binario
 en `lib/`):
 
 ```bash
-cd fleet_app
+# (ya estás en la carpeta del proyecto: la raíz del repositorio)
 flutter create --platforms=ios .   # completa solo lo que falta de iOS
 cd ios && pod install && cd ..
 open ios/Runner.xcworkspace        # configurar firma/Team en Xcode
@@ -222,16 +212,15 @@ agregar otro complejo en el futuro, sumalo en `lib/models/complex.dart`.
 
 ## Trámites
 
-Tarjeta **Trámites abiertos** del panel (se puede ocultar desde *Pestañas
-visibles*, clave `tab_procedures`). Cada trámite tiene: **tipo** (pedido de
-service, de compra, de arreglo u otro escrito a mano), **fecha de inicio**,
-**fecha de finalización** (opcional; se propone hoy al pasar a Finalizado o
-Rechazado), **estado** (Iniciado, En trámite, Finalizado, Rechazado), **nº de
-expediente**, **dónde se presentó** (opcional) y el **móvil** (se elige de los
-ya cargados, por nº interno; opcional para trámites generales). Solo el admin
-crea, edita o elimina; los comunes solo ven. Salen en el reporte PDF, se
-sincronizan con Firestore (colección `procedures`: **volver a publicar
-`firestore.rules`**) y entran en el respaldo (local y Google Drive).
+Tarjeta **Trámites abiertos** del panel del complejo (se puede ocultar desde
+*Pestañas visibles*, clave `tab_procedures`). Cada trámite tiene **tipo**
+(pedido de service, de compra, de arreglo u otro escrito a mano), **fecha de
+inicio**, **fecha de finalización** (opcional), **estado** (Iniciado, En
+trámite, Finalizado, Rechazado), **nº de expediente**, **dónde se presentó**
+(opcional) y el **móvil** (de los ya cargados). Solo el usuario god crea, edita
+o elimina; los comunes solo ven. Salen en el reporte PDF, se sincronizan con
+Firestore (colección `procedures`: **volver a publicar `firestore.rules`**) y
+forman parte del respaldo (local y Google Drive).
 
 ## Baja de móviles y choferes (con fecha y motivo)
 
@@ -254,11 +243,21 @@ con buscador y filtro por provincia, **Cerca de mí** (ordena por distancia
 sobre lo que se está viendo, hasta 120 estaciones) y un botón para buscar
 **cualquier estación cercana en Google Maps**.
 
+## Logos, temas y letras
+
+- **Logos** (Panel de administración → *Logos de la app*): logo de **inicio**
+  (ingreso, bienvenida, acceso de administrador) y logo de la **interfaz**
+  (barra superior). Se sincronizan con la nube. Cada complejo puede además
+  tener el suyo (*Apariencia de cada complejo*).
+- **Apariencia** (ícono de paleta): 14 **temas listos**, 4 **estilos**
+  (estándar, negro puro, alto contraste, papel), 31 **colores** y 44
+  **letras** con buscador.
+
 ## Base de datos local
 
-La base SQLite está en la **versión 16** (migración automática desde
-cualquier versión anterior): agrega bajas con fecha/motivo, psicofísico y la
-tabla de trámites.
+La base SQLite está en la **versión 19** (migración automática desde
+cualquier versión anterior): bajas con fecha/motivo, psicofísico, trámites
+(con móvil, fecha de finalización y dónde se presentó) y apariencia.
 
 ## Seguridad: keystore y código de activación
 
@@ -282,7 +281,7 @@ ven nada de esto y reciben los datos por la sincronización normal
 (Firestore).
 
 La app crea en ese Drive la carpeta `Parque Automotor - Respaldo` con un
-único archivo `respaldo_parque_automotor.json`, **privado** (no se
+único archivo `respaldo P.A.B.P <fecha y hora>.json`, **privado** (no se
 comparte con nadie), y lo actualiza solo: al abrir la app (máximo cada
 15 min) y en el respaldo automático de 3 h. Bajarlo es manual, con el
 botón **Bajar respaldo desde Drive**; en un celular nuevo alcanza con
@@ -305,12 +304,3 @@ iniciar sesión con la misma cuenta y tocar ese botón.
 
 Al bajar un respaldo nunca se pisa un vehículo/chofer que el dispositivo
 ya tenga más nuevo, y nada de lo borrado definitivamente vuelve a aparecer.
-
-## Versión de Flutter en Codemagic
-
-`codemagic.yaml` fija **Flutter 3.47.9**. Con `stable` Codemagic pasó a
-Flutter 3.50, que exige Gradle 9.3.1, AGP 9.1.1 y Kotlin 2.4.10 (el proyecto
-usa Gradle 8.14, AGP 8.11.1 y Kotlin 2.2.20) y el build falla con
-"Your project's Gradle version (8.14.0) is lower than Flutter's minimum
-supported version of 9.3.1". Para pasar a 3.50 o posterior hay que migrar
-primero `android/` (Gradle, AGP y Kotlin integrado).

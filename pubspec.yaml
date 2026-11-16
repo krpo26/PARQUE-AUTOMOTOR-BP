@@ -1,7 +1,7 @@
 name: parque_automotor_benjamin_paz
 description: "PARQUE AUTOMOTOR BENJAMIN PAZ — Sistema de gestión y control de flota de vehículos y choferes."
 publish_to: 'none'
-version: 1.1.0+5
+version: 1.5.0+11
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -45,6 +45,9 @@ dependencies:
   # exigir `request.auth != null` y así cerrar el acceso a Firestore
   # a cualquiera que no pase por la app (ver sync_service.dart).
   firebase_auth: ^5.3.1
+  # App Check: solo la app genuina (Play Integrity) puede hablar con
+  # Firestore/Storage una vez que se activa "Enforce" en la consola.
+  firebase_app_check: ^0.3.1
 
   # Tema, tipografía, fotos y documentos
   shared_preferences: ^2.3.2
@@ -94,4 +97,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo.png
+    - assets/images/logo_azul.png
     - assets/data/estaciones_ticket_car.json

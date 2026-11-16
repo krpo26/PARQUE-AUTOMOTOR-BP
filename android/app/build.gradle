@@ -70,7 +70,9 @@ android {
         // en Google Play (debe ser único en toda la store).
         applicationId = "com.fleetapp.app"
         minSdk = 23
-        targetSdk = 34
+        // Google Play exige targetSdk 36 (Android 16) para apps nuevas y
+        // actualizaciones desde el 31/08/2026.
+        targetSdk = 36
         // versionCode y versionName los pone solo el plugin de
         // Flutter (ver nota arriba) — no se pisan acá a mano.
     }

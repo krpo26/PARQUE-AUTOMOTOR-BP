@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Reglas de Firebase Storage — PARQUE AUTOMOTOR BENJAMIN PAZ
+//
+// CÓMO APLICARLAS: consola de Firebase → Storage → Reglas → pegar este
+// archivo completo → Publicar. Pasos completos en SEGURIDAD.md.
+//
+// La app SOLO escribe respaldos en backups/ (ver backup_service.dart) y
+// nunca los lee desde Storage. Por eso: nadie puede leer ni borrar nada
+// desde un cliente (el admin los ve desde la consola de Firebase, que
+// no pasa por estas reglas). Los respaldos con fecha se pueden crear
+// pero no pisar; solo "respaldo P.A.B.P ultimo.json" se puede reemplazar.
+// Los respaldos contienen todos los datos del parque, por eso no deben
+// ser legibles por los clientes.
+//
+// Nombres: "respaldo P.A.B.P <fecha y hora de carga>.json". Las líneas
+// marcadas "versión anterior" dejan funcionar a las apps viejas
+// (auto_backup_*.json); se pueden borrar cuando todos los celulares
+// tengan la versión nueva.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Único archivo que se puede pisar (siempre el último respaldo).
+    match /backups/{file} {
+      allow create, update: if request.auth != null
+        && request.resource.size < 25 * 1024 * 1024
+        && (file == 'respaldo P.A.B.P ultimo.json'
+            || file == 'auto_backup_latest.json');            // versión anterior
+    }
+
+    // Respaldos con fecha: solo se pueden crear (no editar ni borrar).
+    match /backups/{file} {
+      allow create: if request.auth != null
+        && request.resource.size < 25 * 1024 * 1024
+        && (file.matches('respaldo P[.]A[.]B[.]P .*[.]json')
+            || file.matches('auto_backup_.*[.]json'));        // versión anterior
+    }
+  }
+}

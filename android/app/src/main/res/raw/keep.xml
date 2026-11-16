@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Evita que el reductor de recursos (shrinkResources) borre el ícono de
+     notificaciones: se usa por nombre desde Dart y el reductor no lo ve. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_fleet" />

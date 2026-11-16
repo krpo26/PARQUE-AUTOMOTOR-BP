@@ -7,11 +7,12 @@ workflows:
     # perfectamente para compilar APK de Android.
     instance_type: mac_mini_m2
     environment:
-      # Versión FIJA de Flutter. Flutter 3.50 (el nuevo "stable") exige
-      # Gradle 9.3.1 / AGP 9.1.1 / Kotlin 2.4.10; este proyecto usa
-      # Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20, que Flutter 3.47.x acepta.
-      # Para subir de versión hay que migrar antes el Gradle del proyecto.
-      flutter: 3.47.9
+      # Versión fija de Flutter: con "stable" Codemagic puede saltar a una
+      # versión nueva con requisitos de Gradle/AGP/Kotlin más altos y romper
+      # el build sin que cambies nada. Este proyecto está armado para 3.47
+      # (Gradle 8.14, AGP 8.11.1, Kotlin 2.2.20). Subila a propósito cuando
+      # quieras actualizar.
+      flutter: 3.47.4
       java: 17
       # Grupo de variables seguras creado en Codemagic (Settings del
       # proyecto → Environment variables → grupo "keystore_credentials"):
@@ -52,20 +53,149 @@ workflows:
           else
             echo "Aviso: no hay variables de keystore. Este build se firma con la key de debug y NO se instalará como actualización sobre versiones firmadas con la keystore propia."
           fi
+      - name: Mostrar huella SHA-1 (para Firebase y Google Drive)
+        script: |
+          KS="$APP_DIR/android/app/fleetapp-release.keystore.jks"
+          if [ -f "$KS" ]; then
+            echo "=============== HUELLAS DE LA KEYSTORE ==============="
+            keytool -list -v -keystore "$KS" -alias "$CM_KEY_ALIAS" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | grep -E "SHA1:|SHA256:" || true
+            echo "======================================================"
+            echo "Pegá SHA1 y SHA256 en Firebase > Configuración del proyecto > tu app Android > Agregar huella digital."
+          else
+            echo "No hay keystore de release en este build (se usa la de debug)."
+          fi
       - name: Obtener dependencias
         script: |
           cd $APP_DIR
           flutter pub get
       - name: Compilar APK release
         script: |
+          #!/usr/bin/env bash
           cd $APP_DIR
           # Número de versión automático: segundos desde 1970. Siempre
           # mayor que el anterior, así cada APK se instala encima del viejo.
-          flutter build apk --release --build-number=$(date +%s)
+          BUILD_NUM=$(date +%s)
+
+          # Si algo falla, imprime al FINAL del log un resumen corto con las
+          # versiones y las líneas del error, para no tener que buscarlo.
+          resumen() {
+            echo ""
+            echo "######## RESUMEN DEL ERROR ########"
+            flutter --version 2>&1 | head -n 1
+            java -version 2>&1 | head -n 1
+            grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties
+            echo "--- errores ---"
+            grep -i -E "Error:|What went wrong|lower than|incompatible|Unsupported|Could not|FAILURE" "$1" | awk '!seen[$0]++' | head -n 14
+            echo "######## FIN DEL RESUMEN ########"
+          }
+
+          set -o pipefail
+          if flutter build apk --release --build-number=$BUILD_NUM 2>&1 | tee /tmp/build1.log; then
+            exit 0
+          fi
+          resumen /tmp/build1.log
+
+          # Segundo intento: sin la validación de versiones mínimas de Gradle,
+          # AGP y Kotlin de Flutter (es una advertencia de soporte, no un
+          # error técnico; muchas veces el proyecto compila igual).
+          echo ""
+          echo ">>> Reintentando sin la validación de versiones..."
+          if flutter build apk --release --build-number=$BUILD_NUM --android-skip-build-dependency-validation 2>&1 | tee /tmp/build2.log; then
+            exit 0
+          fi
+          resumen /tmp/build2.log
+          exit 1
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
       - fleet_app/build/app/outputs/flutter-apk/*.apk
     publishing:
+      email:
+        recipients:
+          - rglord87@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  android-play-internal:
+    name: PARQUE AUTOMOTOR - Google Play (pista interna)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      # Versión fija de Flutter: con "stable" Codemagic puede saltar a una
+      # versión nueva con requisitos de Gradle/AGP/Kotlin más altos y romper
+      # el build sin que cambies nada. Este proyecto está armado para 3.47
+      # (Gradle 8.14, AGP 8.11.1, Kotlin 2.2.20). Subila a propósito cuando
+      # quieras actualizar.
+      flutter: 3.47.4
+      java: 17
+      # Mismo grupo de la keystore que el workflow de arriba. Para Play
+      # esta keystore pasa a ser la "clave de subida" (upload key).
+      # Además hace falta el grupo "google_play", con UNA variable segura:
+      #   GCLOUD_SERVICE_ACCOUNT_CREDENTIALS -> el contenido del .json de
+      #   la cuenta de servicio de Google Play (ver SEGURIDAD.md, paso 4).
+      groups:
+        - keystore_credentials
+        - google_play
+      vars:
+        PACKAGE_NAME: "com.fleetapp.app"
+    scripts:
+      - name: Ubicar proyecto Flutter
+        script: |
+          if [ -f "$CM_BUILD_DIR/pubspec.yaml" ]; then
+            APP_DIR="$CM_BUILD_DIR"
+          elif [ -f "$CM_BUILD_DIR/fleet_app/pubspec.yaml" ]; then
+            APP_DIR="$CM_BUILD_DIR/fleet_app"
+          else
+            echo "ERROR: no se encontró pubspec.yaml"; exit 1
+          fi
+          echo "APP_DIR=$APP_DIR" >> $CM_ENV
+          echo "Proyecto Flutter en: $APP_DIR"
+      - name: Preparar firma de release (obligatoria para Play)
+        script: |
+          cd $APP_DIR
+          # Play rechaza bundles firmados con la clave de debug, así que
+          # si faltan las variables de la keystore el build falla acá.
+          if [ -z "$CM_KEYSTORE" ]; then
+            echo "ERROR: falta CM_KEYSTORE (grupo keystore_credentials). Play no acepta bundles firmados con debug."
+            exit 1
+          fi
+          echo "$CM_KEYSTORE" | base64 --decode > $APP_DIR/android/app/fleetapp-release.keystore.jks
+          cat > $APP_DIR/android/key.properties <<EOF
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyPassword=$CM_KEY_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          storeFile=$APP_DIR/android/app/fleetapp-release.keystore.jks
+          EOF
+      - name: Mostrar huella SHA-1 (para Firebase y Google Drive)
+        script: |
+          KS="$APP_DIR/android/app/fleetapp-release.keystore.jks"
+          if [ -f "$KS" ]; then
+            echo "=============== HUELLAS DE LA KEYSTORE ==============="
+            keytool -list -v -keystore "$KS" -alias "$CM_KEY_ALIAS" -storepass "$CM_KEYSTORE_PASSWORD" 2>/dev/null | grep -E "SHA1:|SHA256:" || true
+            echo "======================================================"
+            echo "Pegá SHA1 y SHA256 en Firebase > Configuración del proyecto > tu app Android > Agregar huella digital."
+          else
+            echo "No hay keystore de release en este build (se usa la de debug)."
+          fi
+      - name: Obtener dependencias
+        script: |
+          cd $APP_DIR
+          flutter pub get
+      - name: Compilar Android App Bundle (.aab)
+        script: |
+          cd $APP_DIR
+          # Google Play exige un versionCode entero y siempre creciente.
+          # Segundos desde 1970 sirve (el tope de Play es ~2.100 millones,
+          # que se alcanza recién en 2036).
+          flutter build appbundle --release --build-number=$(date +%s) --dart-define=APP_CHECK=true
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+      - fleet_app/build/app/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal          # pista de prueba interna: privada, hasta 100 testers
+        submit_as_draft: true    # necesario hasta que la app tenga su primera versión publicada
       email:
         recipients:
           - rglord87@gmail.com
