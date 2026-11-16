@@ -1,15 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../firebase_options.dart';
 import '../models/audit_log.dart';
+import '../models/complex_appearance.dart';
 import '../models/driver.dart';
 import '../models/feature_flag.dart';
 import '../models/fuel_log.dart';
 import '../models/legal_acceptance.dart';
 import '../models/maintenance_record.dart';
-import '../models/complex_appearance.dart';
 import '../models/observation_photo.dart';
 import '../models/procedure.dart';
 import '../models/record_photo.dart';
@@ -17,6 +19,9 @@ import '../models/user_account.dart';
 import '../models/vehicle.dart';
 import '../models/vehicle_tech_sheet.dart';
 import 'database_helper.dart';
+
+/// true solo en los builds de Google Play (ver codemagic.yaml).
+const bool kUseAppCheck = bool.fromEnvironment('APP_CHECK');
 
 /// Sincroniza vehículos, choferes, historial de mantenimiento y
 /// usuarios comunes con Cloud Firestore cuando hay conexión a
@@ -80,6 +85,27 @@ class SyncService {
         // que Dart llegue a este punto. Eso es normal, no un error real:
         // seguimos usando esa instancia ya inicializada.
         if (!e.toString().contains('duplicate-app')) rethrow;
+      }
+
+      // App Check: hace que Firebase solo acepte pedidos de la app
+      // genuina (Play Integrity en Android). Si falla la activación no
+      // se corta la app: el bloqueo real lo aplica la consola de
+      // Firebase al activar "Enforce" (ver SEGURIDAD.md, paso 4).
+      // Solo se activa en la versión que se instala desde Google Play
+      // (se compila con --dart-define=APP_CHECK=true). En un APK
+      // instalado a mano Play Integrity no puede verificar la app y
+      // volvería lentas las consultas a la nube.
+      if (kUseAppCheck) {
+        try {
+          await FirebaseAppCheck.instance.activate(
+            androidProvider: kDebugMode
+                ? AndroidProvider.debug
+                : AndroidProvider.playIntegrity,
+            appleProvider: kDebugMode
+                ? AppleProvider.debug
+                : AppleProvider.deviceCheck,
+          );
+        } catch (_) {}
       }
 
       // Autenticación anónima: si ya había una sesión de una apertura
@@ -159,53 +185,6 @@ class SyncService {
 
   /// Solo sube usuarios COMUNES. El usuario god nunca se sube a la
   /// nube, ni siquiera si se llama por error con uno: se ignora.
-  Future<void> pushAppearance(ComplexAppearance a) async {
-    if (!isCloudEnabled) return;
-    try {
-      await _firestore!
-          .collection('complex_appearances')
-          .doc(a.complexId)
-          .set(a.toMap())
-          .timeout(_kWriteTimeout);
-    } catch (_) {}
-  }
-
-  /// Trae la apariencia de la nube (gana la más reciente) y sube la local
-  /// si es más nueva.
-  Future<void> _mergeAppearances(DatabaseHelper db) async {
-    final local = {
-      for (final a in await db.getComplexAppearances()) a.complexId: a
-    };
-    final snap = await _firestore!.collection('complex_appearances').get();
-    final remote = <String, ComplexAppearance>{};
-    for (final doc in snap.docs) {
-      try {
-        remote[doc.id] = ComplexAppearance.fromMap(doc.data());
-      } catch (_) {}
-    }
-    for (final id in {...local.keys, ...remote.keys}) {
-      final l = local[id];
-      final r = remote[id];
-      if (l == null && r != null) {
-        await db.upsertComplexAppearance(r);
-      } else if (r == null && l != null) {
-        await _firestore!
-            .collection('complex_appearances')
-            .doc(id)
-            .set(l.toMap());
-      } else if (l != null && r != null) {
-        if (r.updatedAt.isAfter(l.updatedAt)) {
-          await db.upsertComplexAppearance(r);
-        } else if (l.updatedAt.isAfter(r.updatedAt)) {
-          await _firestore!
-              .collection('complex_appearances')
-              .doc(id)
-              .set(l.toMap());
-        }
-      }
-    }
-  }
-
   Future<void> pushProcedure(Procedure p) async {
     if (!isCloudEnabled) return;
     try {
@@ -213,6 +192,18 @@ class SyncService {
           .collection('procedures')
           .doc(p.id)
           .set(p.toMap())
+          .timeout(_kWriteTimeout);
+    } catch (_) {}
+  }
+
+  /// Sube la apariencia de un complejo (la define el admin).
+  Future<void> pushAppearance(ComplexAppearance a) async {
+    if (!isCloudEnabled) return;
+    try {
+      await _firestore!
+          .collection('complex_appearances')
+          .doc(a.complexId)
+          .set(a.toMap())
           .timeout(_kWriteTimeout);
     } catch (_) {}
   }
@@ -561,6 +552,42 @@ class SyncService {
           await db.insertProcedure(remote);
         } else if (local.updatedAt.isAfter(remote.updatedAt)) {
           await _firestore!.collection('procedures').doc(id).set(local.toMap());
+        }
+      }
+    }
+  }
+
+  /// Apariencia de cada complejo: gana la edición más reciente.
+  Future<void> _mergeAppearances(DatabaseHelper db) async {
+    final localById = {
+      for (final a in await db.getComplexAppearances()) a.complexId: a
+    };
+    final remoteSnap =
+        await _firestore!.collection('complex_appearances').get();
+    final remoteById = <String, ComplexAppearance>{};
+    for (final doc in remoteSnap.docs) {
+      try {
+        remoteById[doc.id] = ComplexAppearance.fromMap(doc.data());
+      } catch (_) {}
+    }
+    for (final id in {...localById.keys, ...remoteById.keys}) {
+      final local = localById[id];
+      final remote = remoteById[id];
+      if (local == null && remote != null) {
+        await db.upsertComplexAppearance(remote);
+      } else if (remote == null && local != null) {
+        await _firestore!
+            .collection('complex_appearances')
+            .doc(id)
+            .set(local.toMap());
+      } else if (local != null && remote != null) {
+        if (remote.updatedAt.isAfter(local.updatedAt)) {
+          await db.upsertComplexAppearance(remote);
+        } else if (local.updatedAt.isAfter(remote.updatedAt)) {
+          await _firestore!
+              .collection('complex_appearances')
+              .doc(id)
+              .set(local.toMap());
         }
       }
     }

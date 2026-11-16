@@ -69,6 +69,6 @@ class LegalTermsService {
       action: 'Aceptó los Términos de Uso y Confidencialidad',
       entityType: 'legal',
       entityLabel: 'Versión $kLegalTermsVersion',
-    );
+    ).timeout(const Duration(seconds: 5), onTimeout: () {});
   }
 }

@@ -1,6 +1,4 @@
-import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,8 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/password_hasher.dart';
 import '../complex_home_screen.dart';
 import 'setup_screen.dart';
+import '../../widgets/app_logo.dart';
 
 /// Se accede desde un botón aparte en la pantalla de login. Los usuarios
 /// comunes ingresan con usuario y contraseña directamente en el login
@@ -35,10 +35,13 @@ class AdminAccessScreen extends StatefulWidget {
 }
 
 class _AdminAccessScreenState extends State<AdminAccessScreen> {
-  // Hash SHA-256 del código de activación. El código en sí no aparece
-  // en ningún lado del código fuente ni del APK compilado.
+  // Hash del código de activación (PBKDF2 con sal; también acepta el
+  // formato viejo SHA-256). El código en sí no aparece en el código
+  // fuente ni en el APK.
+  // Para cambiarlo: `dart run tool/gen_admin_hash.dart` (ver SEGURIDAD.md)
+  // y reemplazá el valor de abajo.
   static const _kActivationCodeHash =
-      'd8f00f7508ea5a4d3df8d64ed52d56f5937612658ea3bda163088fd15e06276c';
+      r'pbkdf2-sha256$100000$OLqdFs2zwG2p4EdSBZeQPA==$jQqt9lVlxl339y0D8TgSLCdQmkmBLflTz1/latGjqGU=';
   static const _kMaxAttempts = 3;
   static const _kLockoutSeconds = 60;
   static const _kAttemptsKey = 'admin_access_failed_attempts';
@@ -61,8 +64,6 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
     _codeCtrl.dispose();
     super.dispose();
   }
-
-  String _hashOf(String value) => sha256.convert(utf8.encode(value)).toString();
 
   Future<void> _checkLockoutState() async {
     final prefs = await SharedPreferences.getInstance();
@@ -112,8 +113,9 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
     if (_remainingLockSeconds > 0) return;
     if (!_codeFormKey.currentState!.validate()) return;
 
-    final entered = _hashOf(_codeCtrl.text.trim());
-    if (entered != _kActivationCodeHash) {
+    final ok = await PasswordHasher.verify(
+        _codeCtrl.text.trim(), _kActivationCodeHash);
+    if (!ok) {
       await _registerFailedAttempt();
       if (!mounted) return;
       _codeCtrl.clear();
@@ -282,7 +284,7 @@ class _GodLoginFormState extends State<_GodLoginForm> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Image.asset('assets/images/logo.png', height: 90),
+          const AppLogo(height: 90, slot: AppLogoSlot.home),
           const SizedBox(height: 12),
           const Text(
             kAppTitle,

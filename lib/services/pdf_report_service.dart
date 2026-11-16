@@ -12,6 +12,16 @@ import '../models/vehicle.dart';
 /// de vehículos y choferes con su estado de alerta. Disponible para
 /// cualquier usuario logueado (god o común), ya que es solo lectura.
 class PdfReportService {
+  /// "N° 12 · AB123CD" del móvil asociado al trámite, o "—" si no tiene.
+  static String _movilLabel(Procedure p, List<Vehicle> vehicles) {
+    final id = p.vehicleId;
+    if (id == null) return '—';
+    for (final v in vehicles) {
+      if (v.id == id) return 'N° ${v.internalNumber} · ${v.plate}';
+    }
+    return 'No disponible';
+  }
+
   static Future<void> generateAndShare({
     required List<Vehicle> vehicles,
     required List<Driver> drivers,
@@ -122,18 +132,18 @@ class PdfReportService {
                   const pw.BoxDecoration(color: PdfColors.blue100),
               cellAlignment: pw.Alignment.centerLeft,
               headers: [
-                'Móvil',
                 'Trámite',
+                'Móvil',
                 'Inicio',
-                'Fin',
+                'Finalización',
                 'Estado',
                 'Expediente',
                 'Presentado en'
               ],
               data: procedures
                   .map((p) => [
-                        p.vehicleNumber.isEmpty ? '—' : p.vehicleNumber,
                         p.type,
+                        _movilLabel(p, vehicles),
                         DateFormat('dd/MM/yyyy').format(p.startDate),
                         p.endDate == null
                             ? '—'

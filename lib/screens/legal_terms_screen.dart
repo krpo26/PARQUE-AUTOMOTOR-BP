@@ -106,7 +106,7 @@ class _LegalTermsScreenState extends State<LegalTermsScreen> {
                                 try {
                                   await LegalTermsService.instance
                                       .accept(widget.username)
-                                      .timeout(const Duration(seconds: 15));
+                                      .timeout(const Duration(seconds: 8));
                                 } catch (_) {
                                   // Aunque algo falle o tarde de más, el
                                   // usuario no puede quedar bloqueado
@@ -116,6 +116,9 @@ class _LegalTermsScreenState extends State<LegalTermsScreen> {
                                 }
                                 if (!mounted) return;
                                 widget.onAccepted();
+                                // Por si la pantalla no se reemplaza, el
+                                // botón nunca queda con el spinner.
+                                if (mounted) setState(() => _accepting = false);
                               }
                             : null,
                         child: Padding(

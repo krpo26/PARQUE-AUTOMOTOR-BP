@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cross_file/cross_file.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +22,17 @@ import 'drive_backup_service.dart';
 import 'sync_service.dart';
 
 const kLastBackupAtKey = 'last_backup_at';
+
+/// Nombre base de todos los respaldos (archivo local, nube y Drive).
+const kBackupBaseName = 'respaldo P.A.B.P';
+
+/// Fecha y hora de carga para el nombre: "2026-11-06 10-30".
+String backupStamp([DateTime? t]) =>
+    DateFormat('yyyy-MM-dd HH-mm').format(t ?? DateTime.now());
+
+/// "respaldo P.A.B.P 2026-11-06 10-30.json"
+String backupFileName([DateTime? t]) =>
+    '$kBackupBaseName ${backupStamp(t)}.json';
 
 /// Genera y restaura respaldos completos de la base de datos local en
 /// formato JSON.
@@ -84,8 +98,7 @@ class BackupService {
 
   Future<File> _writeToTempFile(Map<String, dynamic> data) async {
     final dir = await getTemporaryDirectory();
-    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final file = File('${dir.path}/respaldo_flota_$stamp.json');
+    final file = File('${dir.path}/${backupFileName()}');
     await file.writeAsBytes(utf8.encode(jsonEncode(data)), flush: true);
     return file;
   }
@@ -96,8 +109,9 @@ class BackupService {
     final file = await _writeToTempFile(data);
     await _markBackedUpNow();
     await Share.shareXFiles(
-      [XFile(file.path)],
-      text: 'Respaldo Parque Automotor — ${DateTime.now()}',
+      [XFile(file.path, mimeType: 'application/json')],
+      text: 'Respaldo P.A.B.P — '
+          '${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
     );
   }
 
@@ -110,19 +124,17 @@ class BackupService {
       final jsonStr = jsonEncode(data);
 
       final docsDir = await getApplicationDocumentsDirectory();
-      final localFile = File('${docsDir.path}/auto_backup_latest.json');
+      final localFile = File('${docsDir.path}/$kBackupBaseName ultimo.json');
       await localFile.writeAsBytes(utf8.encode(jsonStr), flush: true);
 
       if (SyncService.instance.isCloudEnabled) {
         try {
           final storage = FirebaseStorage.instance;
           await storage
-              .ref('backups/auto_backup_latest.json')
+              .ref('backups/$kBackupBaseName ultimo.json')
               .putString(jsonStr, format: PutStringFormat.raw);
-          final stamp =
-              DateTime.now().toIso8601String().replaceAll(':', '-');
           await storage
-              .ref('backups/auto_backup_$stamp.json')
+              .ref('backups/${backupFileName()}')
               .putString(jsonStr, format: PutStringFormat.raw);
         } catch (_) {
           // Sin conexión en el momento del respaldo automático: la
@@ -143,9 +155,26 @@ class BackupService {
   /// Sube el respaldo completo al Google Drive que eligió el admin
   /// (si este dispositivo ya tiene una cuenta elegida). El archivo es
   /// privado, solo del admin.
-  Future<bool> backupToDrive() async {
+  Future<bool> backupToDrive({bool interactive = false}) async {
     final data = await _buildBackupMap();
-    return DriveBackupService.instance.uploadBackup(jsonEncode(data));
+    return DriveBackupService.instance
+        .uploadBackup(jsonEncode(data), interactive: interactive);
+  }
+
+  /// Abre el selector de guardado del sistema para elegir DÓNDE guardar el
+  /// respaldo: el celular, Google Drive u otra app de archivos. Devuelve
+  /// false si se canceló.
+  Future<bool> saveWithPicker() async {
+    final data = await _buildBackupMap();
+    final bytes = Uint8List.fromList(utf8.encode(jsonEncode(data)));
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Guardar respaldo',
+      fileName: backupFileName(),
+      bytes: bytes,
+    );
+    if (path == null) return false;
+    await _markBackedUpNow();
+    return true;
   }
 
   Future<void> _markBackedUpNow() async {

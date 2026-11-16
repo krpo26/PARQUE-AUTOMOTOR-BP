@@ -25,6 +25,80 @@ const List<AppColorOption> kColorOptions = [
   AppColorOption('Verde oliva', Color(0xFF558B2F)),
   AppColorOption('Celeste', Color(0xFF0288D1)),
   AppColorOption('Grafito', Color(0xFF212121)),
+  AppColorOption('Azul marino', Color(0xFF0B2545)),
+  AppColorOption('Azul cielo', Color(0xFF1E88E5)),
+  AppColorOption('Cian', Color(0xFF00ACC1)),
+  AppColorOption('Verde esmeralda', Color(0xFF00796B)),
+  AppColorOption('Verde bosque', Color(0xFF1B5E20)),
+  AppColorOption('Lima', Color(0xFF9E9D24)),
+  AppColorOption('Amarillo', Color(0xFFF9A825)),
+  AppColorOption('Ámbar', Color(0xFFFF8F00)),
+  AppColorOption('Terracota', Color(0xFFBF360C)),
+  AppColorOption('Rojo oscuro', Color(0xFF7F0000)),
+  AppColorOption('Magenta', Color(0xFFC2185B)),
+  AppColorOption('Lavanda', Color(0xFF7E57C2)),
+  AppColorOption('Púrpura oscuro', Color(0xFF4A148C)),
+  AppColorOption('Gris azulado', Color(0xFF546E7A)),
+  AppColorOption('Café', Color(0xFF6D4C41)),
+  AppColorOption('Negro', Color(0xFF000000)),
+];
+
+/// Estilos de superficie del tema (además de claro/oscuro y del color).
+enum AppThemeStyle { standard, amoled, highContrast, paper }
+
+extension AppThemeStyleX on AppThemeStyle {
+  String get label {
+    switch (this) {
+      case AppThemeStyle.standard:
+        return 'Estándar';
+      case AppThemeStyle.amoled:
+        return 'Negro puro (oscuro, ahorra batería)';
+      case AppThemeStyle.highContrast:
+        return 'Alto contraste';
+      case AppThemeStyle.paper:
+        return 'Papel / sepia (claro, para leer)';
+    }
+  }
+}
+
+/// Tema listo para elegir con un toque: combina modo, color y estilo.
+class ThemePreset {
+  final String name;
+  final String description;
+  final ThemeMode mode;
+  final String colorName; // nombre en [kColorOptions]
+  final AppThemeStyle style;
+  const ThemePreset(this.name, this.description, this.mode, this.colorName,
+      [this.style = AppThemeStyle.standard]);
+
+  int get colorIndex {
+    final i = kColorOptions.indexWhere((c) => c.name == colorName);
+    return i < 0 ? 0 : i;
+  }
+}
+
+const List<ThemePreset> kThemePresets = [
+  ThemePreset('Clásico institucional', 'Claro, azul institucional',
+      ThemeMode.light, 'Azul institucional'),
+  ThemePreset('Automático', 'Sigue al celular (claro u oscuro)',
+      ThemeMode.system, 'Azul institucional'),
+  ThemePreset('Noche', 'Oscuro, índigo', ThemeMode.dark, 'Índigo'),
+  ThemePreset('Medianoche', 'Negro puro, ahorra batería', ThemeMode.dark,
+      'Azul cielo', AppThemeStyle.amoled),
+  ThemePreset('Alto contraste', 'Claro, textos muy marcados', ThemeMode.light,
+      'Azul marino', AppThemeStyle.highContrast),
+  ThemePreset('Alto contraste oscuro', 'Oscuro, textos muy marcados',
+      ThemeMode.dark, 'Ámbar', AppThemeStyle.highContrast),
+  ThemePreset('Papel', 'Fondo color papel, cómodo para leer', ThemeMode.light,
+      'Café', AppThemeStyle.paper),
+  ThemePreset('Bosque', 'Claro, verde bosque', ThemeMode.light, 'Verde bosque'),
+  ThemePreset('Océano', 'Claro, azul cielo', ThemeMode.light, 'Azul cielo'),
+  ThemePreset('Atardecer', 'Claro, terracota', ThemeMode.light, 'Terracota'),
+  ThemePreset('Bordó', 'Claro, bordó', ThemeMode.light, 'Bordó'),
+  ThemePreset('Lavanda', 'Claro, violeta suave', ThemeMode.light, 'Lavanda'),
+  ThemePreset('Grafito', 'Oscuro, gris acero', ThemeMode.dark, 'Gris acero'),
+  ThemePreset('Esmeralda nocturno', 'Oscuro, verde esmeralda', ThemeMode.dark,
+      'Verde esmeralda'),
 ];
 
 /// Fuentes disponibles para el texto de toda la app. Los primeros
@@ -53,6 +127,28 @@ enum AppFont {
   lora,
   serif,
   mono,
+  rubik,
+  barlow,
+  karla,
+  cabin,
+  dmSans,
+  manrope,
+  ptSans,
+  bitter,
+  josefinSans,
+  spaceGrotesk,
+  libreBaskerville,
+  cairo,
+  titilliumWeb,
+  mulish,
+  outfit,
+  lexend,
+  archivo,
+  atkinson,
+  comfortaa,
+  exo2,
+  kanit,
+  heebo,
 }
 
 extension AppFontX on AppFont {
@@ -102,6 +198,50 @@ extension AppFontX on AppFont {
         return 'Serif del sistema';
       case AppFont.mono:
         return 'Monoespaciada del sistema';
+      case AppFont.rubik:
+        return 'Rubik';
+      case AppFont.barlow:
+        return 'Barlow';
+      case AppFont.karla:
+        return 'Karla';
+      case AppFont.cabin:
+        return 'Cabin';
+      case AppFont.dmSans:
+        return 'DM Sans';
+      case AppFont.manrope:
+        return 'Manrope';
+      case AppFont.ptSans:
+        return 'PT Sans';
+      case AppFont.bitter:
+        return 'Bitter (con serifa)';
+      case AppFont.josefinSans:
+        return 'Josefin Sans (elegante)';
+      case AppFont.spaceGrotesk:
+        return 'Space Grotesk';
+      case AppFont.libreBaskerville:
+        return 'Libre Baskerville (clásica)';
+      case AppFont.cairo:
+        return 'Cairo';
+      case AppFont.titilliumWeb:
+        return 'Titillium Web';
+      case AppFont.mulish:
+        return 'Mulish';
+      case AppFont.outfit:
+        return 'Outfit';
+      case AppFont.lexend:
+        return 'Lexend (fácil de leer)';
+      case AppFont.archivo:
+        return 'Archivo';
+      case AppFont.atkinson:
+        return 'Atkinson Hyperlegible (máxima legibilidad)';
+      case AppFont.comfortaa:
+        return 'Comfortaa (redondeada)';
+      case AppFont.exo2:
+        return 'Exo 2 (técnica)';
+      case AppFont.kanit:
+        return 'Kanit';
+      case AppFont.heebo:
+        return 'Heebo';
     }
   }
 }
@@ -110,6 +250,16 @@ extension AppFontX on AppFont {
 /// celular. Las letras de Google se bajan de internet la primera vez
 /// que se usan y quedan guardadas; sin conexión se ve la
 /// predeterminada hasta que se puedan bajar.
+/// Letra de Google por nombre de familia. Si el nombre no existe o algo
+/// falla, devuelve null (queda la letra predeterminada del celular).
+TextTheme? _googleTheme(String family) {
+  try {
+    return GoogleFonts.getTextTheme(family);
+  } catch (_) {
+    return null;
+  }
+}
+
 TextTheme? textThemeForFont(AppFont font) {
   switch (font) {
     case AppFont.system:
@@ -156,6 +306,50 @@ TextTheme? textThemeForFont(AppFont font) {
       return ThemeData(fontFamily: 'serif').textTheme;
     case AppFont.mono:
       return ThemeData(fontFamily: 'monospace').textTheme;
+    case AppFont.rubik:
+      return _googleTheme('Rubik');
+    case AppFont.barlow:
+      return _googleTheme('Barlow');
+    case AppFont.karla:
+      return _googleTheme('Karla');
+    case AppFont.cabin:
+      return _googleTheme('Cabin');
+    case AppFont.dmSans:
+      return _googleTheme('DM Sans');
+    case AppFont.manrope:
+      return _googleTheme('Manrope');
+    case AppFont.ptSans:
+      return _googleTheme('PT Sans');
+    case AppFont.bitter:
+      return _googleTheme('Bitter');
+    case AppFont.josefinSans:
+      return _googleTheme('Josefin Sans');
+    case AppFont.spaceGrotesk:
+      return _googleTheme('Space Grotesk');
+    case AppFont.libreBaskerville:
+      return _googleTheme('Libre Baskerville');
+    case AppFont.cairo:
+      return _googleTheme('Cairo');
+    case AppFont.titilliumWeb:
+      return _googleTheme('Titillium Web');
+    case AppFont.mulish:
+      return _googleTheme('Mulish');
+    case AppFont.outfit:
+      return _googleTheme('Outfit');
+    case AppFont.lexend:
+      return _googleTheme('Lexend');
+    case AppFont.archivo:
+      return _googleTheme('Archivo');
+    case AppFont.atkinson:
+      return _googleTheme('Atkinson Hyperlegible');
+    case AppFont.comfortaa:
+      return _googleTheme('Comfortaa');
+    case AppFont.exo2:
+      return _googleTheme('Exo 2');
+    case AppFont.kanit:
+      return _googleTheme('Kanit');
+    case AppFont.heebo:
+      return _googleTheme('Heebo');
   }
 }
 
@@ -168,12 +362,14 @@ class SettingsProvider extends ChangeNotifier {
   static const _kThemeModeKey = 'settings_theme_mode';
   static const _kColorIndexKey = 'settings_color_index';
   static const _kFontKey = 'settings_font';
+  static const _kThemeStyleKey = 'settings_theme_style';
   static const _kVehiclesSectionIconKey = 'settings_vehicles_section_icon';
   static const _kDriversSectionIconKey = 'settings_drivers_section_icon';
 
   ThemeMode themeMode = ThemeMode.system;
   int colorIndex = 0;
   AppFont font = AppFont.system;
+  AppThemeStyle themeStyle = AppThemeStyle.standard;
   String? vehiclesSectionIconKey;
   String? driversSectionIconKey;
 
@@ -190,6 +386,10 @@ class SettingsProvider extends ChangeNotifier {
     final fontIndex = prefs.getInt(_kFontKey);
     if (fontIndex != null && fontIndex < AppFont.values.length) {
       font = AppFont.values[fontIndex];
+    }
+    final styleIndex = prefs.getInt(_kThemeStyleKey);
+    if (styleIndex != null && styleIndex < AppThemeStyle.values.length) {
+      themeStyle = AppThemeStyle.values[styleIndex];
     }
     vehiclesSectionIconKey = prefs.getString(_kVehiclesSectionIconKey);
     driversSectionIconKey = prefs.getString(_kDriversSectionIconKey);
@@ -208,6 +408,25 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kColorIndexKey, index);
+  }
+
+  Future<void> setThemeStyle(AppThemeStyle value) async {
+    themeStyle = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kThemeStyleKey, value.index);
+  }
+
+  /// Aplica un tema listo (modo + color + estilo) de un solo toque.
+  Future<void> applyPreset(ThemePreset p) async {
+    themeMode = p.mode;
+    colorIndex = p.colorIndex;
+    themeStyle = p.style;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kThemeModeKey, p.mode.index);
+    await prefs.setInt(_kColorIndexKey, p.colorIndex);
+    await prefs.setInt(_kThemeStyleKey, p.style.index);
   }
 
   Future<void> setFont(AppFont value) async {

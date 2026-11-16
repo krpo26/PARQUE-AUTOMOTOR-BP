@@ -5,12 +5,14 @@ import 'package:provider/provider.dart';
 import '../../models/procedure.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/procedure_provider.dart';
+import '../../providers/vehicle_provider.dart';
 import '../../widgets/status_badge.dart';
 import 'procedure_form_screen.dart';
 
 /// Reporte de trámites en formato de tabla: una columna para el
-/// trámite (pedido de service, de compras, de arreglo…), otra para la
-/// fecha de inicio, el estado y el número de expediente (opcional).
+/// trámite (pedido de service, de compras, de arreglo…), el móvil
+/// asociado, la fecha de inicio y de finalización, el estado y el
+/// número de expediente (opcional).
 /// Tocar una fila abre el detalle; solo el god puede crear, editar o
 /// eliminar trámites.
 class ProcedureListScreen extends StatefulWidget {
@@ -51,6 +53,16 @@ class _ProcedureListScreenState extends State<ProcedureListScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<ProcedureProvider>();
     final isGod = context.watch<AuthProvider>().isGod;
+    final vehiclesById = {
+      for (final v in context.watch<VehicleProvider>().vehicles) v.id: v,
+    };
+    String movilLabel(Procedure p) {
+      final id = p.vehicleId;
+      if (id == null) return '—';
+      final v = vehiclesById[id];
+      return v == null ? 'No disponible' : 'N° ${v.internalNumber} · ${v.plate}';
+    }
+
     final all = provider.procedures;
     final items = _statusFilter == null
         ? all
@@ -105,42 +117,58 @@ class _ProcedureListScreenState extends State<ProcedureListScreen> {
                             ),
                           ),
                         )
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 88),
-                          itemCount: items.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (context, i) {
-                            final p = items[i];
-                            final lines = <String>[
-                              if (p.vehicleNumber.isNotEmpty)
-                                'Móvil: ${p.vehicleNumber}',
-                              'Inicio: ${_dateFmt.format(p.startDate)}'
-                                  '${p.endDate != null ? '  ·  Fin: ${_dateFmt.format(p.endDate!)}' : ''}',
-                              if (p.fileNumber.isNotEmpty)
-                                'Expediente: ${p.fileNumber}',
-                              if (p.presentedAt.isNotEmpty)
-                                'Presentado en: ${p.presentedAt}',
-                            ];
-                            return Card(
-                              margin: EdgeInsets.zero,
-                              child: ListTile(
-                                onTap: () => _open(p, !isGod),
-                                title: Text(p.type,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600)),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(lines.join('\n')),
-                                ),
-                                isThreeLine: lines.length > 1,
-                                trailing: StatusBadge(
-                                  label: p.status,
-                                  color: ProcedureListScreen.statusColor(
-                                      p.status),
+                      : LayoutBuilder(
+                          builder: (context, constraints) =>
+                              SingleChildScrollView(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth),
+                                child: DataTable(
+                                  showCheckboxColumn: false,
+                                  columnSpacing: 20,
+                                  columns: const [
+                                    DataColumn(label: Text('Trámite')),
+                                    DataColumn(label: Text('Móvil')),
+                                    DataColumn(label: Text('Inicio')),
+                                    DataColumn(label: Text('Finalización')),
+                                    DataColumn(label: Text('Estado')),
+                                    DataColumn(label: Text('Expediente')),
+                                    DataColumn(label: Text('Presentado en')),
+                                  ],
+                                  rows: items
+                                      .map(
+                                        (p) => DataRow(
+                                          onSelectChanged: (_) =>
+                                              _open(p, !isGod),
+                                          cells: [
+                                            DataCell(Text(p.type)),
+                                            DataCell(Text(movilLabel(p))),
+                                            DataCell(
+                                                Text(_dateFmt.format(p.startDate))),
+                                            DataCell(Text(p.endDate == null
+                                                ? '—'
+                                                : _dateFmt.format(p.endDate!))),
+                                            DataCell(StatusBadge(
+                                              label: p.status,
+                                              color: ProcedureListScreen
+                                                  .statusColor(p.status),
+                                            )),
+                                            DataCell(Text(p.fileNumber.isEmpty
+                                                ? '—'
+                                                : p.fileNumber)),
+                                            DataCell(Text(p.presentedAt.isEmpty
+                                                ? '—'
+                                                : p.presentedAt)),
+                                          ],
+                                        ),
+                                      )
+                                      .toList(),
                                 ),
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
                 ),
               ],

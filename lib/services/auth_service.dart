@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/user_account.dart';
 import 'audit_service.dart';
 import 'database_helper.dart';
+import 'password_hasher.dart';
 import 'sync_service.dart';
 
 /// Maneja la autenticación y el ciclo de vida de los usuarios.
@@ -17,7 +16,9 @@ import 'sync_service.dart';
 /// eliminar usuarios "comunes", que solo pueden iniciar sesión y ver
 /// información (sin crear/editar/eliminar vehículos ni choferes).
 ///
-/// Las contraseñas se guardan siempre hasheadas (SHA-256) en SQLite.
+/// Las contraseñas se guardan siempre hasheadas (PBKDF2-HMAC-SHA256 con
+/// sal aleatoria, ver password_hasher.dart) en SQLite. Los hashes viejos
+/// (SHA-256 sin sal) se aceptan y se actualizan solos al iniciar sesión.
 /// La sesión activa (qué usuario quedó logueado) se guarda por
 /// separado en el almacenamiento seguro del sistema.
 ///
@@ -32,8 +33,6 @@ class AuthService {
   final _storage = const FlutterSecureStorage();
   static const _kSessionUserIdKey = 'session_user_id';
 
-  String _hash(String value) => sha256.convert(utf8.encode(value)).toString();
-
   /// true si todavía no existe el usuario god (primer uso de la app).
   Future<bool> needsSetup() async {
     final god = await DatabaseHelper.instance.getGodUser();
@@ -46,7 +45,7 @@ class AuthService {
     final user = UserAccount(
       id: const Uuid().v4(),
       username: username.trim(),
-      passwordHash: _hash(password),
+      passwordHash: await PasswordHasher.hash(password),
       role: UserRole.god,
     );
     await DatabaseHelper.instance.insertUser(user);
@@ -69,7 +68,18 @@ class AuthService {
       user = cloudUser;
     }
 
-    if (user.passwordHash != _hash(password)) return false;
+    if (!await PasswordHasher.verify(password, user.passwordHash)) {
+      return false;
+    }
+
+    // Migración transparente: si el hash es del formato viejo, se
+    // regenera con PBKDF2 + sal ahora que tenemos la contraseña.
+    if (PasswordHasher.needsUpgrade(user.passwordHash)) {
+      final upgraded =
+          user.copyWith(passwordHash: await PasswordHasher.hash(password));
+      await DatabaseHelper.instance.updateUser(upgraded);
+      if (!upgraded.isGod) unawaited(SyncService.instance.pushUser(upgraded));
+    }
 
     await _storage.write(key: _kSessionUserIdKey, value: user.id);
     return true;
@@ -90,11 +100,12 @@ class AuthService {
   Future<bool> changePassword(
       String currentPassword, String newPassword) async {
     final user = await currentUser();
-    if (user == null || user.passwordHash != _hash(currentPassword)) {
+    if (user == null ||
+        !await PasswordHasher.verify(currentPassword, user.passwordHash)) {
       return false;
     }
-    await DatabaseHelper.instance
-        .updateUser(user.copyWith(passwordHash: _hash(newPassword)));
+    await DatabaseHelper.instance.updateUser(
+        user.copyWith(passwordHash: await PasswordHasher.hash(newPassword)));
     return true;
   }
 
@@ -114,7 +125,7 @@ class AuthService {
     final user = UserAccount(
       id: const Uuid().v4(),
       username: username.trim(),
-      passwordHash: _hash(password),
+      passwordHash: await PasswordHasher.hash(password),
       role: UserRole.common,
       complexIds: complexIds,
     );
@@ -142,7 +153,7 @@ class AuthService {
     final updated = user.copyWith(
       username: newUsername.trim(),
       passwordHash: (newPassword != null && newPassword.isNotEmpty)
-          ? _hash(newPassword)
+          ? await PasswordHasher.hash(newPassword)
           : null,
       complexIds: complexIds,
     );

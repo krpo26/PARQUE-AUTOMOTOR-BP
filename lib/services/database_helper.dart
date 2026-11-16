@@ -2,13 +2,13 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/audit_log.dart';
-import '../models/complex_appearance.dart';
 import '../models/driver.dart';
 import '../models/feature_flag.dart';
 import '../models/fuel_log.dart';
 import '../models/legal_acceptance.dart';
 import '../models/maintenance_record.dart';
 import '../models/observation_photo.dart';
+import '../models/complex_appearance.dart';
 import '../models/procedure.dart';
 import '../models/record_photo.dart';
 import '../models/user_account.dart';
@@ -38,7 +38,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 16,
+      version: 19,
       onConfigure: (db) async {
         // Sin esto, las cláusulas "ON DELETE CASCADE" de las tablas
         // (mantenimiento, combustible, ficha técnica, fotos) quedan
@@ -342,25 +342,33 @@ class DatabaseHelper {
           type TEXT NOT NULL,
           start_date TEXT NOT NULL,
           status TEXT NOT NULL,
-          end_date TEXT,
           file_number TEXT,
-          presented_at TEXT NOT NULL DEFAULT '',
-          vehicle_id TEXT NOT NULL DEFAULT '',
-          vehicle_number TEXT NOT NULL DEFAULT '',
           complex_id TEXT NOT NULL DEFAULT 'benjamin_paz',
           updated_at TEXT
         )
       ''');
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS complex_appearances (
-          complex_id TEXT PRIMARY KEY,
-          theme_mode TEXT,
-          color_index INTEGER,
-          font_key TEXT,
-          logo_b64 TEXT,
-          updated_at TEXT
-        )
-      ''');
+    }
+    if (oldVersion < 17) {
+      // Trámites: móvil asociado y fecha de finalización.
+      for (final stmt in const [
+        'ALTER TABLE procedures ADD COLUMN vehicle_id TEXT',
+        'ALTER TABLE procedures ADD COLUMN end_date TEXT',
+      ]) {
+        try {
+          await db.execute(stmt);
+        } catch (_) {}
+      }
+    }
+    if (oldVersion < 18) {
+      // Apariencia propia de cada complejo (logo, tema, color, letra).
+      await db.execute(_kCreateComplexAppearances);
+    }
+    if (oldVersion < 19) {
+      // Trámites: dónde se presentó (opcional).
+      try {
+        await db.execute(
+            "ALTER TABLE procedures ADD COLUMN presented_at TEXT NOT NULL DEFAULT ''");
+      } catch (_) {}
     }
   }
 
@@ -529,26 +537,16 @@ class DatabaseHelper {
         type TEXT NOT NULL,
         start_date TEXT NOT NULL,
         status TEXT NOT NULL,
-        end_date TEXT,
         file_number TEXT,
-        presented_at TEXT NOT NULL DEFAULT '',
-        vehicle_id TEXT NOT NULL DEFAULT '',
-        vehicle_number TEXT NOT NULL DEFAULT '',
         complex_id TEXT NOT NULL DEFAULT 'benjamin_paz',
+        vehicle_id TEXT,
+        end_date TEXT,
+        presented_at TEXT NOT NULL DEFAULT '',
         updated_at TEXT
       )
     ''');
 
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS complex_appearances (
-        complex_id TEXT PRIMARY KEY,
-        theme_mode TEXT,
-        color_index INTEGER,
-        font_key TEXT,
-        logo_b64 TEXT,
-        updated_at TEXT
-      )
-    ''');
+    await db.execute(_kCreateComplexAppearances);
   }
 
   // ---------------- DELETED RECORDS (borrados definitivos) ----------------
@@ -684,7 +682,18 @@ class DatabaseHelper {
     return rows.map((r) => Driver.fromMap(r)).toList();
   }
 
-  // ---------------- APARIENCIA DEL COMPLEJO ----------------
+  // ---------------- APARIENCIA DE CADA COMPLEJO ----------------
+
+  static const String _kCreateComplexAppearances = '''
+    CREATE TABLE IF NOT EXISTS complex_appearances (
+      complex_id TEXT PRIMARY KEY,
+      theme_mode TEXT,
+      color_index INTEGER,
+      font_key TEXT,
+      logo_b64 TEXT,
+      updated_at TEXT
+    )
+  ''';
 
   Future<List<ComplexAppearance>> getComplexAppearances() async {
     final db = await database;
@@ -692,9 +701,9 @@ class DatabaseHelper {
     return rows.map((r) => ComplexAppearance.fromMap(r)).toList();
   }
 
-  Future<int> upsertComplexAppearance(ComplexAppearance a) async {
+  Future<void> upsertComplexAppearance(ComplexAppearance a) async {
     final db = await database;
-    return db.insert('complex_appearances', a.toMap(),
+    await db.insert('complex_appearances', a.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 

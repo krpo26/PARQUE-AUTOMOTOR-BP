@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/appearance_provider.dart';
@@ -15,6 +14,7 @@ import 'services/background_service.dart';
 import 'services/drive_backup_service.dart';
 import 'services/notification_service.dart';
 import 'services/screenshot_protection_service.dart';
+import 'theme/app_theme.dart';
 import 'services/sync_service.dart';
 
 /// Nombre institucional del sistema: PARQUE AUTOMOTOR BENJAMIN PAZ
@@ -37,6 +37,19 @@ Future<void> main() async {
   runApp(const FleetApp());
 }
 
+ThemeMode? _modeFromKey(String? key) {
+  switch (key) {
+    case 'light':
+      return ThemeMode.light;
+    case 'dark':
+      return ThemeMode.dark;
+    case 'system':
+      return ThemeMode.system;
+    default:
+      return null;
+  }
+}
+
 class FleetApp extends StatelessWidget {
   const FleetApp({super.key});
 
@@ -53,41 +66,33 @@ class FleetApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FeatureFlagsProvider()..load()),
         ChangeNotifierProvider(create: (_) => AppearanceProvider()..load()),
       ],
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, _) {
-          final TextTheme? textTheme = textThemeForFont(settings.font);
-
-          ThemeData buildTheme(Brightness brightness) {
-            var theme = ThemeData(
-              colorSchemeSeed: settings.seedColor,
-              brightness: brightness,
-              useMaterial3: true,
-              appBarTheme:
-                  const AppBarTheme(centerTitle: true, elevation: 0),
-              filledButtonTheme: FilledButtonThemeData(
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            );
-            if (textTheme != null) {
-              theme = theme.copyWith(
-                textTheme: textTheme.apply(
-                  bodyColor: theme.colorScheme.onSurface,
-                  displayColor: theme.colorScheme.onSurface,
-                ),
-              );
-            }
-            return theme;
-          }
-
+      child: Consumer2<SettingsProvider, AppearanceProvider>(
+        builder: (context, settings, appearance, _) {
+          // Dentro de un complejo se aplica la apariencia que le definió
+          // el administrador; los campos vacíos usan lo general de la app.
+          final a = appearance.active;
+          final mode = _modeFromKey(a?.themeMode) ?? settings.themeMode;
+          final idx = a?.colorIndex;
+          final seed = (idx != null && idx >= 0 && idx < kColorOptions.length)
+              ? kColorOptions[idx].color
+              : settings.seedColor;
+          final font = fontFromKey(a?.fontKey) ?? settings.font;
           return MaterialApp(
             title: kAppTitle,
             debugShowCheckedModeBanner: false,
-            themeMode: settings.themeMode,
-            theme: buildTheme(Brightness.light),
-            darkTheme: buildTheme(Brightness.dark),
+            themeMode: mode,
+            theme: buildAppTheme(
+              brightness: Brightness.light,
+              seed: seed,
+              font: font,
+              style: settings.themeStyle,
+            ),
+            darkTheme: buildAppTheme(
+              brightness: Brightness.dark,
+              seed: seed,
+              font: font,
+              style: settings.themeStyle,
+            ),
             home: const AppStartup(),
           );
         },

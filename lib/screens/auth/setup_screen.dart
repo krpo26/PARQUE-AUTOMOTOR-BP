@@ -60,7 +60,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppLogo(height: 90),
+                  const AppLogo(height: 90, slot: AppLogoSlot.home),
                   const SizedBox(height: 12),
                   const Text(
                     kAppTitle,

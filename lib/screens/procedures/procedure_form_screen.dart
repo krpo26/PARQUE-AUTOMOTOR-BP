@@ -8,6 +8,7 @@ import '../../providers/vehicle_provider.dart';
 
 /// Alta / edición / detalle de un trámite.
 /// [procedure] null = alta. [readOnly] true = usuario común (solo ve).
+/// Se puede asociar un móvil (opcional) y cargar la fecha de finalización.
 class ProcedureFormScreen extends StatefulWidget {
   final Procedure? procedure;
   final bool readOnly;
@@ -25,11 +26,11 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
   late final TextEditingController _otherTypeCtrl;
   late final TextEditingController _fileNumberCtrl;
   late final TextEditingController _presentedAtCtrl;
-  DateTime? _endDate;
-  String _vehicleId = ''; // '' = sin móvil
   late String _typeChoice; // uno de Procedure.types o Procedure.otherType
   late String _status;
   late DateTime _startDate;
+  String? _vehicleId; // móvil asociado (null = sin móvil)
+  DateTime? _endDate; // fecha de finalización (null = sin fecha)
 
   bool get _isEditing => widget.procedure != null;
 
@@ -44,6 +45,8 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
       _startDate = DateTime.now();
       _fileNumberCtrl = TextEditingController();
       _presentedAtCtrl = TextEditingController();
+      _vehicleId = null;
+      _endDate = null;
     } else {
       final isPreset = Procedure.types.contains(p.type);
       _typeChoice = isPreset ? p.type : Procedure.otherType;
@@ -54,8 +57,8 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
       _startDate = p.startDate;
       _fileNumberCtrl = TextEditingController(text: p.fileNumber);
       _presentedAtCtrl = TextEditingController(text: p.presentedAt);
-      _endDate = p.endDate;
       _vehicleId = p.vehicleId;
+      _endDate = p.endDate;
     }
   }
 
@@ -77,69 +80,62 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
     if (picked != null) setState(() => _startDate = picked);
   }
 
+  DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
   Future<void> _pickEndDate() async {
+    final start = _dayOnly(_startDate);
+    final today = _dayOnly(DateTime.now());
+    var initial = _endDate != null ? _dayOnly(_endDate!) : today;
+    if (initial.isBefore(start)) initial = start;
+    var last = today.add(const Duration(days: 365));
+    if (initial.isAfter(last)) last = initial;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initial,
+      firstDate: start,
+      lastDate: last,
     );
     if (picked != null) setState(() => _endDate = picked);
   }
 
-  void _onStatusChanged(String? v) {
-    if (v == null) return;
-    setState(() {
-      _status = v;
-      // Al finalizar o rechazar se propone la fecha de hoy.
-      if (!(v == Procedure.statusDone || v == Procedure.statusRejected)) return;
-      _endDate ??= DateTime.now();
-    });
-  }
-
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_endDate != null &&
+        _dayOnly(_endDate!).isBefore(_dayOnly(_startDate))) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'La fecha de finalización no puede ser anterior a la de inicio.'),
+      ));
+      return;
+    }
     final provider = context.read<ProcedureProvider>();
     final type = _typeChoice == Procedure.otherType
         ? _otherTypeCtrl.text.trim()
         : _typeChoice;
     final fileNumber = _fileNumberCtrl.text.trim();
     final presentedAt = _presentedAtCtrl.text.trim();
-    if (_endDate != null && _endDate!.isBefore(_startDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('La fecha de finalización no puede ser anterior a la de inicio.')));
-      return;
-    }
-    final vehicles = context.read<VehicleProvider>().vehicles;
-    final matches = vehicles.where((v) => v.id == _vehicleId);
-    final vehicleNumber = matches.isNotEmpty
-        ? matches.first.internalNumber
-        : (widget.procedure?.vehicleId == _vehicleId
-            ? widget.procedure!.vehicleNumber
-            : '');
 
     if (_isEditing) {
       await provider.updateProcedure(widget.procedure!.copyWith(
         type: type,
         startDate: _startDate,
         status: _status,
-        endDate: _endDate,
-        clearEndDate: _endDate == null,
         fileNumber: fileNumber,
         presentedAt: presentedAt,
         vehicleId: _vehicleId,
-        vehicleNumber: vehicleNumber,
+        clearVehicle: _vehicleId == null,
+        endDate: _endDate,
+        clearEndDate: _endDate == null,
       ));
     } else {
       await provider.addProcedure(
         type: type,
         startDate: _startDate,
         status: _status,
-        endDate: _endDate,
         fileNumber: fileNumber,
         presentedAt: presentedAt,
         vehicleId: _vehicleId,
-        vehicleNumber: vehicleNumber,
+        endDate: _endDate,
       );
     }
     if (mounted) Navigator.pop(context);
@@ -172,6 +168,11 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
   @override
   Widget build(BuildContext context) {
     final readOnly = widget.readOnly;
+    final vehicles = context.watch<VehicleProvider>().vehicles;
+    // Si el móvil guardado ya no está en la lista (dado de baja o de
+    // otro complejo) se muestra igual, para no perder el dato.
+    final savedVehicleMissing =
+        _vehicleId != null && !vehicles.any((v) => v.id == _vehicleId);
     return Scaffold(
       appBar: AppBar(
         title: Text(readOnly
@@ -220,6 +221,29 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
               ),
             ],
             const SizedBox(height: 12),
+            DropdownButtonFormField<String?>(
+              value: _vehicleId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Móvil (opcional)',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem<String?>(
+                    value: null, child: Text('Sin móvil')),
+                for (final v in vehicles)
+                  DropdownMenuItem<String?>(
+                    value: v.id,
+                    child: Text('N° ${v.internalNumber} · ${v.plate}',
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                if (savedVehicleMissing)
+                  DropdownMenuItem<String?>(
+                      value: _vehicleId, child: const Text('Móvil no disponible')),
+              ],
+              onChanged: readOnly ? null : (v) => setState(() => _vehicleId = v),
+            ),
+            const SizedBox(height: 12),
             InkWell(
               onTap: readOnly ? null : _pickDate,
               child: InputDecorator(
@@ -242,7 +266,17 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
                 for (final s in Procedure.statuses)
                   DropdownMenuItem(value: s, child: Text(s)),
               ],
-              onChanged: readOnly ? null : _onStatusChanged,
+              onChanged: readOnly
+                  ? null
+                  : (v) => setState(() {
+                        _status = v ?? _status;
+                        // Al marcarlo como finalizado se propone hoy como
+                        // fecha de finalización (se puede cambiar o quitar).
+                        if (_status == Procedure.statusDone &&
+                            _endDate == null) {
+                          _endDate = _dayOnly(DateTime.now());
+                        }
+                      }),
             ),
             const SizedBox(height: 12),
             InkWell(
@@ -259,46 +293,14 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
                         )
                       : const Icon(Icons.event_available),
                 ),
-                child: Text(_endDate == null
-                    ? (readOnly ? 'Sin dato' : 'Seleccionar fecha')
-                    : _dateFmt.format(_endDate!)),
+                child: Text(
+                  _endDate == null ? 'Sin fecha' : _dateFmt.format(_endDate!),
+                  style: _endDate == null
+                      ? const TextStyle(color: Colors.grey)
+                      : null,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            Builder(builder: (context) {
-              final vehicles = [...context.watch<VehicleProvider>().vehicles]
-                ..sort((a, b) => a.internalNumber.compareTo(b.internalNumber));
-              final known = vehicles.any((v) => v.id == _vehicleId);
-              final savedNumber = widget.procedure?.vehicleNumber ?? '';
-              return DropdownButtonFormField<String>(
-                value: (_vehicleId.isEmpty || known || savedNumber.isNotEmpty)
-                    ? _vehicleId
-                    : '',
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Móvil',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  const DropdownMenuItem(value: '', child: Text('Sin móvil / general')),
-                  if (_vehicleId.isNotEmpty && !known)
-                    DropdownMenuItem(
-                        value: _vehicleId,
-                        child: Text('Móvil $savedNumber (dado de baja)')),
-                  for (final v in vehicles)
-                    DropdownMenuItem(
-                      value: v.id,
-                      child: Text(
-                          '${v.internalNumber} · ${v.brand} ${v.model} · ${v.plate}'
-                              .trim(),
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                ],
-                onChanged: readOnly
-                    ? null
-                    : (v) => setState(() => _vehicleId = v ?? ''),
-              );
-            }),
             const SizedBox(height: 12),
             TextFormField(
               controller: _fileNumberCtrl,

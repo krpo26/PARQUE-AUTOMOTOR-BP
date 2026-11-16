@@ -49,22 +49,7 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  String _friendlyError(Object e) {
-    final t = e.toString();
-    if (t.contains('ApiException: 10') || t.contains('DEVELOPER_ERROR')) {
-      return 'Google rechazó el inicio de sesión: falta registrar la huella '
-          'SHA-1 de la app en Firebase (ver README, sección "Respaldo en '
-          'Google Drive").';
-    }
-    if (t.contains('403') || t.contains('accessNotConfigured')) {
-      return 'La API de Google Drive no está habilitada en el proyecto de '
-          'Google Cloud (ver README).';
-    }
-    if (t.contains('network') || t.contains('SocketException')) {
-      return 'No hay conexión a internet.';
-    }
-    return 'No se pudo completar: $e';
-  }
+  String _friendlyError(Object e) => driveFriendlyError(e);
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
@@ -81,7 +66,7 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
   Future<void> _chooseAccount() => _run(() async {
         final email = await DriveBackupService.instance.chooseAccount();
         if (email == null) return;
-        final ok = await BackupService.instance.backupToDrive();
+        final ok = await BackupService.instance.backupToDrive(interactive: true);
         _toast(ok
             ? 'Listo: el respaldo se guarda en el Drive de $email'
             : 'Cuenta elegida, pero no se pudo subir el primer respaldo. '
@@ -89,10 +74,11 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
       });
 
   Future<void> _backupNow() => _run(() async {
-        final ok = await BackupService.instance.backupToDrive();
+        final ok = await BackupService.instance.backupToDrive(interactive: true);
         _toast(ok
             ? 'Respaldo subido a Google Drive'
-            : 'No se pudo subir (¿sin sesión de Google o sin internet?)');
+            : 'No se pudo subir. Revisá la conexión o tocá "Cambiar cuenta '
+                'de Drive".');
       });
 
   Future<void> _pullNow() => _run(() async {
@@ -116,6 +102,44 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
             break;
         }
       });
+
+  Future<void> _showHelp() {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Ayuda para conectar Drive'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Si al elegir la cuenta aparece un error, casi siempre falta '
+            'configurar Google. Se hace una sola vez, en el navegador:\n\n'
+            '1) Huella SHA-1. En Codemagic, abrí el build y buscá el paso '
+            '"Mostrar huella SHA-1": ahí figura. En la consola de Firebase '
+            '(Configuración del proyecto → tu app Android → Agregar huella '
+            'digital) pegá el SHA-1 y el SHA-256. Si instalás desde Google '
+            'Play, agregá también las huellas de "Firma de la app" que '
+            'muestra Play Console.\n\n'
+            '2) API de Drive. En Google Cloud Console (mismo proyecto) → '
+            'APIs y servicios → Biblioteca → "Google Drive API" → Habilitar.\n\n'
+            '3) Pantalla de consentimiento. En Google Cloud → APIs y '
+            'servicios → Pantalla de consentimiento de OAuth: completá el '
+            'nombre de la app y el correo de asistencia. Si está en modo '
+            '"Prueba", agregá tu correo como usuario de prueba (o pasala a '
+            '"En producción").\n\n'
+            '4) Volvé a la app y tocá "Elegir cuenta de Google Drive". Si '
+            'Google pide permiso, aceptá el acceso a Drive.\n\n'
+            'Mientras tanto, el respaldo manual funciona sin Google: '
+            '"Guardar respaldo en Drive o en el celular" e "Importar '
+            'respaldo" en esta misma pantalla.',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar')),
+        ],
+      ),
+    );
+  }
 
   Future<void> _disconnect() async {
     final ok = await showDialog<bool>(
@@ -177,6 +201,11 @@ class _DriveBackupCardState extends State<DriveBackupCard> {
           label: Text(_email == null
               ? 'Elegir cuenta de Google Drive'
               : 'Cambiar cuenta de Drive'),
+        ),
+        TextButton.icon(
+          onPressed: _showHelp,
+          icon: const Icon(Icons.help_outline),
+          label: const Text('Ayuda para conectar Drive'),
         ),
         if (_email != null) ...[
           const SizedBox(height: 8),

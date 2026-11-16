@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../models/complex.dart';
 import '../models/driver.dart';
 import '../models/vehicle.dart';
-import '../providers/auth_provider.dart';
 import '../providers/appearance_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/driver_provider.dart';
 import '../providers/procedure_provider.dart';
 import '../providers/sync_provider.dart';
@@ -17,6 +17,7 @@ import 'auth/login_screen.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
 import 'users/user_management_screen.dart';
+import '../widgets/app_logo.dart';
 
 /// Pantalla principal con la única sección del complejo (Benjamín Paz).
 /// Abre el panel de trabajo (vehículos, choferes, trámites, alertas).
@@ -91,12 +92,16 @@ class _ComplexHomeScreenState extends State<ComplexHomeScreen> {
       drivers.setComplex(complex.id),
       procedures.setComplex(complex.id),
     ]);
-    if (mounted) context.read<AppearanceProvider>().setActive(complex.id);
     if (!context.mounted) return;
+    // Se aplica la apariencia de este complejo mientras se está adentro.
+    context.read<AppearanceProvider>().setActive(complex.id);
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => DashboardScreen(complex: complex)),
     );
+    if (context.mounted) {
+      context.read<AppearanceProvider>().setActive(null);
+    }
     _loadCounts();
   }
 
@@ -169,8 +174,7 @@ class _ComplexHomeScreenState extends State<ComplexHomeScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Center(
-            child: Image.asset('assets/images/logo.png',
-                height: 90, width: 90, fit: BoxFit.contain),
+            child: const AppLogo(height: 90, slot: AppLogoSlot.home),
           ),
           const SizedBox(height: 8),
           Text(

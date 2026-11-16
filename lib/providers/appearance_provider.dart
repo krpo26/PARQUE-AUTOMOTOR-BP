@@ -19,6 +19,25 @@ class AppearanceProvider extends ChangeNotifier {
   final Map<String, Uint8List> _logos = {};
   String? activeComplexId;
 
+  /// Claves reservadas para los logos generales de la app (no son
+  /// complejos). Viajan por la misma sincronización que la apariencia.
+  static const String kHomeLogoKey = '_logo_inicio';
+  static const String kUiLogoKey = '_logo_interfaz';
+
+  /// Logo de las pantallas de inicio (ingreso, bienvenida, administrador).
+  Uint8List? get homeLogo => _logos[kHomeLogoKey];
+
+  /// Logo de la interfaz (barra superior de las pantallas de trabajo).
+  Uint8List? get uiLogo => _logos[kUiLogoKey];
+
+  /// Guarda (o quita, con null) uno de los logos generales. Solo admin.
+  Future<void> setGlobalLogo(String key, Uint8List? bytes) {
+    return save(ComplexAppearance(
+      complexId: key,
+      logoBase64: bytes == null ? null : base64Encode(bytes),
+    ));
+  }
+
   ComplexAppearance? of(String complexId) => _items[complexId];
   ComplexAppearance? get active =>
       activeComplexId == null ? null : _items[activeComplexId];

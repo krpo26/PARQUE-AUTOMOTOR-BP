@@ -37,10 +37,16 @@ class SyncProvider extends ChangeNotifier {
     isSyncing = true;
     notifyListeners();
 
-    await SyncService.instance.syncAll();
-
-    isSyncing = false;
-    notifyListeners();
+    try {
+      // Tope de 90 s: si la nube no responde, el ícono deja de girar.
+      await SyncService.instance
+          .syncAll()
+          .timeout(const Duration(seconds: 90), onTimeout: () {});
+    } catch (_) {
+    } finally {
+      isSyncing = false;
+      notifyListeners();
+    }
     _onSynced?.call();
   }
 

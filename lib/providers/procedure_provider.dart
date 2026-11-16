@@ -46,23 +46,21 @@ class ProcedureProvider extends ChangeNotifier {
     required String type,
     required DateTime startDate,
     required String status,
-    DateTime? endDate,
     String fileNumber = '',
     String presentedAt = '',
-    String vehicleId = '',
-    String vehicleNumber = '',
+    String? vehicleId,
+    DateTime? endDate,
   }) async {
     final p = Procedure(
       id: const Uuid().v4(),
       type: type,
       startDate: startDate,
       status: status,
-      endDate: endDate,
       fileNumber: fileNumber,
       presentedAt: presentedAt,
-      vehicleId: vehicleId,
-      vehicleNumber: vehicleNumber,
       complexId: _complexId ?? kDefaultComplexId,
+      vehicleId: vehicleId,
+      endDate: endDate,
     );
     await DatabaseHelper.instance.insertProcedure(p);
     await load();

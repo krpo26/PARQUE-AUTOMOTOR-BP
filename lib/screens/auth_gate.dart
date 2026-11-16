@@ -29,12 +29,27 @@ class _AuthGateState extends State<AuthGate> {
   bool? _needsLegalAcceptance;
 
   Future<bool> _resolveLoggedIn(BuildContext context) async {
-    await context.read<AuthProvider>().refresh();
+    // Con tope de tiempo: si algo tarda de más, no se deja la pantalla
+    // girando para siempre.
+    try {
+      await context
+          .read<AuthProvider>()
+          .refresh()
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {}
     return context.read<AuthProvider>().isLoggedIn;
   }
 
   Future<void> _checkLegalAcceptance(String username) async {
-    final accepted = await LegalTermsService.instance.hasAccepted(username);
+    var accepted = false;
+    try {
+      accepted = await LegalTermsService.instance
+          .hasAccepted(username)
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Ante un error se muestra la pantalla legal (lado seguro) en
+      // lugar de dejar un spinner infinito.
+    }
     if (!mounted) return;
     setState(() => _needsLegalAcceptance = !accepted);
   }

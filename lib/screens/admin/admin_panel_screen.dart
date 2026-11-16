@@ -4,21 +4,24 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/complex.dart';
 import '../../services/backup_service.dart';
-import '../../services/notification_service.dart';
 import '../../services/sync_service.dart';
 import '../../widgets/drive_backup_card.dart';
 import 'access_log_screen.dart';
 import 'audit_log_screen.dart';
+import '../notification_settings_screen.dart';
+import 'complex_appearance_screen.dart';
 import 'feature_flags_screen.dart';
+import 'app_logos_screen.dart';
 
 /// Panel de administración avanzada. Solo llega acá el usuario god
 /// (el botón que la abre está oculto para usuarios comunes).
 ///
 /// Desde acá se configura:
-/// - Cada cuánto se repite la alerta sonora de vencimientos mientras
-///   haya algo pendiente (service próximo/vencido, carnet próximo a
-///   vencer o vencido).
+/// - El sonido (MP3) y la frecuencia de cada tipo de aviso (service,
+///   carnet y combustible), en la pantalla de Notificaciones.
+/// - La apariencia propia de cada complejo (logo, tema, color, letra).
 /// - El respaldo de la base de datos: ver cuándo fue el último
 ///   (automático, cada 3 horas, corre solo en segundo plano), forzar
 ///   uno manual ahora mismo, y restaurar desde un archivo guardado.
@@ -30,7 +33,6 @@ class AdminPanelScreen extends StatefulWidget {
 }
 
 class _AdminPanelScreenState extends State<AdminPanelScreen> {
-  int _intervalMinutes = NotificationService.kDefaultIntervalMinutes;
   DateTime? _lastBackupAt;
   bool _loading = true;
   bool _exporting = false;
@@ -43,35 +45,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   Future<void> _load() async {
-    final interval = await NotificationService.instance.getAlertIntervalMinutes();
     final lastBackup = await BackupService.instance.getLastBackupAt();
     if (!mounted) return;
     setState(() {
-      _intervalMinutes = interval;
       _lastBackupAt = lastBackup;
       _loading = false;
     });
-  }
-
-  String _intervalLabel(int minutes) {
-    if (minutes < 60) return '$minutes minutos';
-    final hours = minutes / 60;
-    if (hours == hours.roundToDouble()) {
-      final h = hours.round();
-      return h == 1 ? '1 hora' : '$h horas';
-    }
-    return '${hours.toStringAsFixed(1)} horas';
-  }
-
-  Future<void> _setInterval(int minutes) async {
-    setState(() => _intervalMinutes = minutes);
-    await NotificationService.instance.setAlertIntervalMinutes(minutes);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content:
-              Text('Alerta sonora configurada cada ${_intervalLabel(minutes)}')),
-    );
   }
 
   Future<void> _exportNow() async {
@@ -81,6 +60,26 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       final lastBackup = await BackupService.instance.getLastBackupAt();
       if (!mounted) return;
       setState(() => _lastBackupAt = lastBackup);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _saveToDriveOrDevice() async {
+    setState(() => _exporting = true);
+    try {
+      final ok = await BackupService.instance.saveWithPicker();
+      final lastBackup = await BackupService.instance.getLastBackupAt();
+      if (!mounted) return;
+      setState(() => _lastBackupAt = lastBackup);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(ok
+              ? 'Respaldo guardado.'
+              : 'No se guardó el respaldo (cancelado).')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo guardar el respaldo: $e')));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -111,16 +110,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
     setState(() => _restoring = true);
     try {
+      // Se acepta cualquier tipo de archivo: los que vienen de Google Drive
+      // u otras apps muchas veces no se identifican como ".json" y el
+      // filtro por extensión los ocultaba.
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+        type: FileType.any,
         withData: true,
       );
       if (result == null || result.files.isEmpty) return;
       final bytes = result.files.first.bytes;
-      if (bytes == null) return;
+      if (bytes == null) {
+        throw 'No se pudo leer el archivo. Si está en Drive, descargalo '
+            'primero al celular.';
+      }
 
-      final jsonStr = utf8.decode(bytes);
+      final String jsonStr;
+      try {
+        jsonStr = utf8.decode(bytes);
+        if (jsonStr.trimLeft().isEmpty || !jsonStr.trimLeft().startsWith('{')) {
+          throw const FormatException();
+        }
+      } catch (_) {
+        throw 'El archivo elegido no es un respaldo (.json) válido.';
+      }
       await BackupService.instance.restoreFromJsonString(jsonStr);
 
       if (!mounted) return;
@@ -149,28 +161,75 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                const Text('Alertas sonoras',
+                const Text('Notificaciones',
                     style:
                         TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 const Text(
-                  'Mientras haya un service vencido/próximo o un carnet '
-                  'vencido/por vencer, el celular repite una notificación '
-                  'con sonido cada tanto tiempo. Elegí cada cuánto:',
+                  'Elegí el sonido (MP3) y cada cuánto se repite cada tipo '
+                  'de aviso: service, carnet y combustible por separado.',
                   style: TextStyle(color: Colors.grey),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: NotificationService.kIntervalOptionsMinutes
-                      .map((minutes) => ChoiceChip(
-                            label: Text(_intervalLabel(minutes)),
-                            selected: _intervalMinutes == minutes,
-                            onSelected: (_) => _setInterval(minutes),
-                          ))
-                      .toList(),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.notifications_active_outlined),
+                  title: const Text('Sonido y frecuencia de avisos'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const NotificationSettingsScreen()),
+                  ),
                 ),
+                const SizedBox(height: 28),
+                const Divider(),
+                const SizedBox(height: 12),
+                const Text('Logos de la app',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Elegí el logo de las pantallas de inicio y el de la '
+                  'interfaz. Llegan a todos los celulares al sincronizar.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.image_outlined),
+                  title: const Text('Configurar logos'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AppLogosScreen()),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 12),
+                const Text('Apariencia de cada complejo',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Logo, tema, color y letra propios de cada complejo. Se '
+                  'aplican al entrar a ese complejo y llegan a los demás '
+                  'celulares al sincronizar.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                for (final c in kComplexes)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.palette_outlined),
+                    title: Text(c.name),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ComplexAppearanceScreen(complex: c)),
+                    ),
+                  ),
                 const SizedBox(height: 28),
                 const Divider(),
                 const SizedBox(height: 12),
@@ -209,6 +268,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
+                  onPressed: _exporting ? null : _saveToDriveOrDevice,
+                  icon: const Icon(Icons.save_alt_outlined),
+                  label: const Text('Guardar respaldo en Drive o en el celular'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
                   onPressed: _restoring ? null : _restoreFromFile,
                   icon: _restoring
                       ? const SizedBox(
@@ -216,7 +281,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           width: 16,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.download_outlined),
-                  label: const Text('Restaurar desde un archivo'),
+                  label: const Text('Importar respaldo (Drive o celular)'),
                 ),
                 const SizedBox(height: 8),
                 Text(

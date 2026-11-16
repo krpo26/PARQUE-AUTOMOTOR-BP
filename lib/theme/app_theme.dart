@@ -2,15 +2,31 @@ import 'package:flutter/material.dart';
 
 import '../providers/settings_provider.dart';
 
-/// Arma el tema de la app a partir del color, la letra y el modo.
+/// Arma el tema de la app a partir del color, la letra, el modo y el
+/// estilo de superficie (estándar, negro puro, alto contraste, papel).
 ThemeData buildAppTheme({
   required Brightness brightness,
   required Color seed,
   required AppFont font,
+  AppThemeStyle style = AppThemeStyle.standard,
 }) {
-  var theme = ThemeData(
-    colorSchemeSeed: seed,
+  var scheme = ColorScheme.fromSeed(
+    seedColor: seed,
     brightness: brightness,
+    contrastLevel: style == AppThemeStyle.highContrast ? 1.0 : 0.0,
+  );
+  Color? scaffold;
+  if (style == AppThemeStyle.amoled && brightness == Brightness.dark) {
+    scheme = scheme.copyWith(surface: Colors.black);
+    scaffold = Colors.black;
+  } else if (style == AppThemeStyle.paper && brightness == Brightness.light) {
+    const paper = Color(0xFFF4ECD8);
+    scheme = scheme.copyWith(surface: paper);
+    scaffold = paper;
+  }
+  var theme = ThemeData(
+    colorScheme: scheme,
+    scaffoldBackgroundColor: scaffold,
     useMaterial3: true,
     appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
     filledButtonTheme: FilledButtonThemeData(
