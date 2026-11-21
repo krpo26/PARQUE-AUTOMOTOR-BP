@@ -115,10 +115,10 @@ class _LegalTermsScreenState extends State<LegalTermsScreen> {
                                   // reintenta solo.
                                 }
                                 if (!mounted) return;
+                                // Se apaga el spinner ANTES de avanzar, así
+                                // el botón nunca queda girando.
+                                setState(() => _accepting = false);
                                 widget.onAccepted();
-                                // Por si la pantalla no se reemplaza, el
-                                // botón nunca queda con el spinner.
-                                if (mounted) setState(() => _accepting = false);
                               }
                             : null,
                         child: Padding(

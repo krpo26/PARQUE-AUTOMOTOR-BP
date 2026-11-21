@@ -18,6 +18,14 @@ import 'legal_terms_screen.dart';
 /// Una vez logueado, si el usuario todavía no aceptó los Términos de
 /// Uso y Confidencialidad vigentes, se le muestra esa pantalla antes
 /// de dejarlo entrar al dashboard — no se puede saltear.
+///
+/// IMPORTANTE (arreglo del "queda dando vueltas"): antes la sesión se
+/// resolvía con un FutureBuilder cuyo `future` se creaba DENTRO de
+/// build(). Cada setState (por ejemplo al aceptar los términos)
+/// disparaba una consulta nueva, volvía a mostrar el spinner y la
+/// pantalla se reiniciaba. Ahora la sesión se resuelve UNA sola vez en
+/// initState, y la aceptación legal se chequea una sola vez por
+/// usuario; al aceptar se pasa directo al inicio, sin re-consultar.
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
@@ -26,9 +34,21 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  bool? _needsLegalAcceptance;
+  bool _sessionResolved = false;
 
-  Future<bool> _resolveLoggedIn(BuildContext context) async {
+  // Usuario para el que ya se resolvió el estado legal, si hace falta
+  // mostrar la pantalla de términos y cuál se está chequeando ahora.
+  String? _legalResolvedFor;
+  String? _legalCheckingFor;
+  bool _needsLegal = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveSession();
+  }
+
+  Future<void> _resolveSession() async {
     // Con tope de tiempo: si algo tarda de más, no se deja la pantalla
     // girando para siempre.
     try {
@@ -37,10 +57,11 @@ class _AuthGateState extends State<AuthGate> {
           .refresh()
           .timeout(const Duration(seconds: 8));
     } catch (_) {}
-    return context.read<AuthProvider>().isLoggedIn;
+    if (!mounted) return;
+    setState(() => _sessionResolved = true);
   }
 
-  Future<void> _checkLegalAcceptance(String username) async {
+  Future<void> _checkLegal(String username) async {
     var accepted = false;
     try {
       accepted = await LegalTermsService.instance
@@ -51,43 +72,52 @@ class _AuthGateState extends State<AuthGate> {
       // lugar de dejar un spinner infinito.
     }
     if (!mounted) return;
-    setState(() => _needsLegalAcceptance = !accepted);
+    setState(() {
+      _legalResolvedFor = username;
+      _legalCheckingFor = null;
+      _needsLegal = !accepted;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _resolveLoggedIn(context),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (!snapshot.data!) {
-          _needsLegalAcceptance = null;
-          return const LoginScreen();
-        }
+    final auth = context.watch<AuthProvider>();
 
-        final username =
-            context.read<AuthProvider>().currentUser?.username ?? '';
+    if (!_sessionResolved) return const _Loading();
 
-        if (_needsLegalAcceptance == null) {
-          _checkLegalAcceptance(username);
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    if (!auth.isLoggedIn) {
+      _legalResolvedFor = null;
+      _legalCheckingFor = null;
+      _needsLegal = false;
+      return const LoginScreen();
+    }
 
-        if (_needsLegalAcceptance == true) {
-          return LegalTermsScreen(
-            username: username,
-            onAccepted: () => setState(() => _needsLegalAcceptance = false),
-          );
-        }
+    final username = auth.currentUser?.username ?? '';
 
-        return const ComplexHomeScreen();
-      },
-    );
+    if (_legalResolvedFor != username) {
+      if (_legalCheckingFor != username) {
+        _legalCheckingFor = username;
+        _checkLegal(username);
+      }
+      return const _Loading();
+    }
+
+    if (_needsLegal) {
+      return LegalTermsScreen(
+        username: username,
+        onAccepted: () => setState(() => _needsLegal = false),
+      );
+    }
+
+    return const ComplexHomeScreen();
   }
+}
+
+class _Loading extends StatelessWidget {
+  const _Loading();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
 }

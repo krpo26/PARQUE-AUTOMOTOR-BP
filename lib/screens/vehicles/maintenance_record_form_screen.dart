@@ -28,10 +28,55 @@ class _MaintenanceRecordFormScreenState
   final _descriptionCtrl = TextEditingController();
   final _mileageCtrl = TextEditingController();
   final _costCtrl = TextEditingController();
+  final _nextServiceCtrl = TextEditingController();
+  // Si el usuario escribió a mano el próximo service, ya no se pisa
+  // con la sugerencia automática.
+  bool _nextServiceEdited = false;
+  Vehicle? _vehicle;
+  int? _suggestedInterval;
   MaintenanceEventType _type = MaintenanceEventType.repair;
   DateTime _date = DateTime.now();
   bool _saving = false;
   final List<String> _pendingPhotoPaths = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVehicle();
+  }
+
+  @override
+  void dispose() {
+    _descriptionCtrl.dispose();
+    _mileageCtrl.dispose();
+    _costCtrl.dispose();
+    _nextServiceCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadVehicle() async {
+    final v = await DatabaseHelper.instance.getVehicleById(widget.vehicleId);
+    if (!mounted) return;
+    setState(() {
+      _vehicle = v;
+      _suggestedInterval =
+          v == null ? null : serviceIntervalKmFor(v.brand, v.model);
+    });
+    _autofillNextService();
+  }
+
+  /// Sugiere el próximo service (km del service + intervalo de la
+  /// marca/modelo), pero solo mientras el usuario no lo haya tocado.
+  void _autofillNextService() {
+    if (_nextServiceEdited) return;
+    final km = int.tryParse(_mileageCtrl.text.trim());
+    final interval = _suggestedInterval;
+    if (km != null && interval != null) {
+      _nextServiceCtrl.text = (km + interval).toString();
+    } else if (km == null) {
+      _nextServiceCtrl.clear();
+    }
+  }
 
   Future<void> _addPhoto() async {
     final source = await showModalBottomSheet<bool>(
@@ -89,24 +134,21 @@ class _MaintenanceRecordFormScreenState
     await DatabaseHelper.instance.insertMaintenanceRecord(record);
     unawaited(SyncService.instance.pushMaintenanceRecord(record));
 
-    // Si se cargó un Service con kilometraje, se recalcula solo el
-    // próximo kilometraje de service del vehículo (kilometraje de
-    // este service + el intervalo según su marca/modelo), sin que
-    // haga falta tocar nada más a mano.
+    // Si se cargó un Service, se actualiza el próximo kilometraje de
+    // service del vehículo con el valor del campo "Próximo service
+    // (km)", que se sugiere solo (km del service + intervalo de la
+    // marca/modelo) pero SIEMPRE se puede modificar a mano.
     String? autoUpdateMessage;
-    if (_type == MaintenanceEventType.service && record.mileageAtEvent != null) {
-      final vehicle = await DatabaseHelper.instance.getVehicleById(widget.vehicleId);
-      if (vehicle != null) {
-        final interval = serviceIntervalKmFor(vehicle.brand, vehicle.model);
-        if (interval != null) {
-          final nextServiceMileage = record.mileageAtEvent! + interval;
-          final updatedVehicle =
-              vehicle.copyWith(nextServiceMileage: nextServiceMileage);
+    if (_type == MaintenanceEventType.service) {
+      final next = int.tryParse(_nextServiceCtrl.text.trim());
+      if (next != null) {
+        final vehicle =
+            await DatabaseHelper.instance.getVehicleById(widget.vehicleId);
+        if (vehicle != null) {
+          final updatedVehicle = vehicle.copyWith(nextServiceMileage: next);
           await DatabaseHelper.instance.updateVehicle(updatedVehicle);
           unawaited(SyncService.instance.pushVehicle(updatedVehicle));
-          autoUpdateMessage =
-              'Próximo service actualizado a $nextServiceMileage km '
-              '(cada $interval km para ${vehicle.brand} ${vehicle.model}).';
+          autoUpdateMessage = 'Próximo service fijado en $next km.';
         }
       }
     }
@@ -170,7 +212,36 @@ class _MaintenanceRecordFormScreenState
                   labelText: 'Kilometraje al momento (opcional)',
                   border: OutlineInputBorder()),
               keyboardType: TextInputType.number,
+              onChanged: (_) => setState(_autofillNextService),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return null;
+                return int.tryParse(v.trim()) == null
+                    ? 'Debe ser un número entero'
+                    : null;
+              },
             ),
+            if (_type == MaintenanceEventType.service) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _nextServiceCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Próximo service (km)',
+                  border: const OutlineInputBorder(),
+                  helperText: _suggestedInterval != null
+                      ? 'Sugerido: km del service + $_suggestedInterval km. '
+                          'Podés modificarlo.'
+                      : 'Podés escribir el km del próximo service.',
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (_) => _nextServiceEdited = true,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  return int.tryParse(v.trim()) == null
+                      ? 'Debe ser un número entero'
+                      : null;
+                },
+              ),
+            ],
             const SizedBox(height: 16),
             TextFormField(
               controller: _costCtrl,

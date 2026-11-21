@@ -112,7 +112,10 @@ class NotificationService {
       _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
 
-  Future<void> init() async {
+  /// [isBackground] = true cuando lo llama la tarea en segundo plano
+  /// (sin pantalla): ahí no se puede pedir el permiso de
+  /// notificaciones, solo se inicializa el plugin y los canales.
+  Future<void> init({bool isBackground = false}) async {
     // Ícono blanco y simple para la barra de estado (el ícono de color
     // de la app se vería como un cuadrado blanco).
     const iosInit = DarwinInitializationSettings(
@@ -135,7 +138,9 @@ class NotificationService {
 
     // Android 13+ exige pedir el permiso de notificaciones en tiempo
     // de ejecución; en versiones anteriores este llamado no hace nada.
-    await _androidImpl?.requestNotificationsPermission();
+    if (!isBackground) {
+      await _androidImpl?.requestNotificationsPermission();
+    }
 
     await _createChannels();
   }
@@ -551,6 +556,13 @@ class NotificationService {
   /// usuario que tiene la sesión iniciada. Lo usan tanto la apertura
   /// de la app como la tarea en segundo plano.
   Future<void> checkForCurrentUser() async {
+    // La tarea en segundo plano corre en un isolate aparte con su
+    // propia copia en memoria de las preferencias: se recarga desde
+    // disco para ver la configuración (intervalos, sonido, "último
+    // aviso") que se cambió con la app abierta.
+    try {
+      await (await SharedPreferences.getInstance()).reload();
+    } catch (_) {}
     final user = await AuthService.instance.currentUser();
     if (user == null) return;
     final db = DatabaseHelper.instance;

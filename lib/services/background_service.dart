@@ -25,13 +25,18 @@ const String _kUniqueTaskName = 'fleet_app_background_upkeep_periodic';
 @pragma('vm:entry-point')
 void backgroundTaskDispatcher() {
   Workmanager().executeTask((task, inputData) async {
+    // PRIMERO las alertas (es lo más importante y lo más liviano):
+    // si Firebase o el respaldo fallan, las notificaciones igual
+    // salen. Antes todo estaba en un solo try y una falla de
+    // SyncService.init() cortaba la revisión de alertas.
     try {
-      await NotificationService.instance.init();
-      await SyncService.instance.init();
-
-      await BackupService.instance.runAutoBackupIfDue();
-
+      await NotificationService.instance.init(isBackground: true);
       await NotificationService.instance.checkForCurrentUser();
+    } catch (_) {}
+
+    try {
+      await SyncService.instance.init();
+      await BackupService.instance.runAutoBackupIfDue();
     } catch (_) {
       // Una falla acá (por ejemplo, sin conexión en ese momento) nunca
       // debe hacer que Android deje de reintentar en el próximo ciclo.
@@ -67,7 +72,7 @@ class BackgroundService {
         _kUniqueTaskName,
         _kTaskName,
         frequency: const Duration(minutes: 15),
-        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
         constraints: Constraints(networkType: NetworkType.notRequired),
       );
     } catch (_) {

@@ -420,8 +420,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               return Padding(
                 padding: const EdgeInsets.only(top: 6, left: 4),
                 child: Text(
-                  'Este campo se actualiza solo (cada $interval km) cada '
-                  'vez que cargues un "Service" en el historial del vehículo.',
+                  'Se sugiere solo (cada $interval km) al cargar un "Service" '
+                  'en el historial, pero siempre lo podés modificar.',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               );

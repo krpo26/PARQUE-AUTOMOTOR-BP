@@ -65,10 +65,11 @@ class LegalTermsService {
     // siempre). Se reintenta sola en la próxima sincronización, que
     // también sube todas las aceptaciones locales.
     unawaited(SyncService.instance.pushLegalAcceptance(acceptance));
-    await AuditService.log(
+    // La auditoría tampoco frena al usuario.
+    unawaited(AuditService.log(
       action: 'Aceptó los Términos de Uso y Confidencialidad',
       entityType: 'legal',
       entityLabel: 'Versión $kLegalTermsVersion',
-    ).timeout(const Duration(seconds: 5), onTimeout: () {});
+    ));
   }
 }
