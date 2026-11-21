@@ -1,3 +1,9 @@
-# Agregar acá reglas de ProGuard/R8 específicas si algún plugin nativo
-# las requiere en el futuro. Por ahora no hace falta nada especial
-# para sqflite, provider, flutter_local_notifications o flutter_secure_storage.
+# Reglas para que R8 (minify) no elimine lo necesario para las alertas
+# en segundo plano (WorkManager) y las notificaciones locales.
+-keep class androidx.work.** { *; }
+-keep class be.tramckrijte.workmanager.** { *; }
+-keep class com.dexterous.** { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keepattributes Signature
+-keepattributes *Annotation*
