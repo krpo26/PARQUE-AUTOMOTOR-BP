@@ -12,11 +12,15 @@ import 'package:uuid/uuid.dart';
 class ImagePickerService {
   static final _picker = ImagePicker();
 
-  static Future<String?> pickAndSave({required bool fromCamera}) async {
+  static Future<String?> pickAndSave({
+    required bool fromCamera,
+    double maxWidth = 1280,
+    int imageQuality = 60,
+  }) async {
     final XFile? picked = await _picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-      maxWidth: 1600,
-      imageQuality: 85,
+      maxWidth: maxWidth,
+      imageQuality: imageQuality,
     );
     if (picked == null) return null;
 
@@ -31,6 +35,11 @@ class ImagePickerService {
         : '.jpg';
     final newPath = p.join(photosDir.path, '${const Uuid().v4()}$ext');
     await File(picked.path).copy(newPath);
+    // La copia temporal que deja el selector/cámara se borra: la
+    // única copia de la foto queda en la carpeta privada de la app.
+    try {
+      await File(picked.path).delete();
+    } catch (_) {}
     return newPath;
   }
 

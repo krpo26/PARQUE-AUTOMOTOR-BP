@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../services/image_picker_service.dart';
+import '../services/photo_sync_service.dart';
 
 /// Tarjeta con una miniatura (o ícono si está vacía) y un botón para
 /// tomar/elegir una foto. Se usa para fotos de choferes y para los
@@ -50,7 +51,8 @@ class PhotoPickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = photoPath != null && File(photoPath!).existsSync();
+    final resolved = PhotoSyncService.resolve(photoPath);
+    final hasPhoto = resolved != null && File(resolved).existsSync();
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -69,7 +71,7 @@ class PhotoPickerTile extends StatelessWidget {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: hasPhoto
-                    ? Image.file(File(photoPath!), fit: BoxFit.cover)
+                    ? Image.file(File(resolved), fit: BoxFit.cover)
                     : Icon(placeholderIcon, color: Colors.grey.shade500),
               ),
               const SizedBox(width: 12),

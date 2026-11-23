@@ -8,6 +8,7 @@ import '../models/vehicle.dart';
 import '../services/audit_service.dart';
 import '../services/database_helper.dart';
 import '../services/notification_service.dart';
+import '../services/photo_sync_service.dart';
 import '../services/sync_service.dart';
 
 class VehicleProvider extends ChangeNotifier {
@@ -144,6 +145,24 @@ class VehicleProvider extends ChangeNotifier {
   /// "Archivados" (es decir, sobre algo que ya estaba archivado), como
   /// última instancia para limpiar registros que ya no hacen falta.
   Future<void> deleteVehicle(Vehicle vehicle) async {
+    // Antes de borrar, se juntan todas las fotos del vehículo para
+    // sacarlas también de la nube (cédula, título, VTV, seguro, etc.).
+    final db = DatabaseHelper.instance;
+    final photoPaths = <String?>[...SyncService.vehiclePhotoPaths(vehicle)];
+    for (final o in await db.getObservationPhotos(vehicle.id)) {
+      photoPaths.add(o.photoPath);
+    }
+    for (final r in await db.getMaintenanceRecords(vehicle.id)) {
+      for (final rp in await db.getRecordPhotos(r.id)) {
+        photoPaths.add(rp.photoPath);
+      }
+    }
+    for (final month in await db.getFuelLogMonths(vehicle.id)) {
+      for (final f in await db.getFuelLogsForMonth(vehicle.id, month)) {
+        photoPaths.add(f.ticketPhotoPath);
+      }
+    }
+    unawaited(PhotoSyncService.instance.deleteRemoteMany(photoPaths));
     await DatabaseHelper.instance.deleteVehicle(vehicle.id);
     await DatabaseHelper.instance.insertTombstone('vehicle', vehicle.id);
     await load();

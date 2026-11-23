@@ -8,6 +8,7 @@ import '../models/driver.dart';
 import '../services/audit_service.dart';
 import '../services/database_helper.dart';
 import '../services/notification_service.dart';
+import '../services/photo_sync_service.dart';
 import '../services/sync_service.dart';
 
 class DriverProvider extends ChangeNotifier {
@@ -132,6 +133,8 @@ class DriverProvider extends ChangeNotifier {
   /// Borrado DEFINITIVO. Solo se ofrece desde "Archivados", sobre un
   /// chofer que ya estaba archivado.
   Future<void> deleteDriver(Driver driver) async {
+    unawaited(PhotoSyncService.instance
+        .deleteRemoteMany(SyncService.driverPhotoPaths(driver)));
     await DatabaseHelper.instance.deleteDriver(driver.id);
     await DatabaseHelper.instance.insertTombstone('driver', driver.id);
     await load();

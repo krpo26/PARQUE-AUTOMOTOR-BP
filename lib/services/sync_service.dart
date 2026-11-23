@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -19,6 +20,7 @@ import '../models/user_account.dart';
 import '../models/vehicle.dart';
 import '../models/vehicle_tech_sheet.dart';
 import 'database_helper.dart';
+import 'photo_sync_service.dart';
 
 /// true solo en los builds de Google Play (ver codemagic.yaml).
 const bool kUseAppCheck = bool.fromEnvironment('APP_CHECK');
@@ -130,6 +132,49 @@ class SyncService {
     }
   }
 
+  // ---------------- Fotos de cada tipo de registro ----------------
+
+  static List<String?> vehiclePhotoPaths(Vehicle v) => [
+        v.photoPath,
+        v.cedulaVerdePath,
+        v.tituloPath,
+        v.vtvPath,
+        v.seguroPath,
+      ];
+
+  static List<String?> driverPhotoPaths(Driver d) =>
+      [d.photoPath, d.licensePhotoPath];
+
+  /// Recorre TODOS los registros locales con fotos: sube las que están
+  /// en este celular y faltan en la nube, y baja las que están en la
+  /// nube y faltan en este celular (fotos sacadas en otros dispositivos).
+  Future<void> _syncAllPhotos(DatabaseHelper db) async {
+    final ph = PhotoSyncService.instance;
+    for (final v in await db.getVehicles(includeArchived: true)) {
+      for (final path in vehiclePhotoPaths(v)) {
+        await ph.syncPath(path);
+      }
+      for (final o in await db.getObservationPhotos(v.id)) {
+        await ph.syncPath(o.photoPath);
+      }
+      for (final r in await db.getMaintenanceRecords(v.id)) {
+        for (final rp in await db.getRecordPhotos(r.id)) {
+          await ph.syncPath(rp.photoPath);
+        }
+      }
+      for (final month in await db.getFuelLogMonths(v.id)) {
+        for (final f in await db.getFuelLogsForMonth(v.id, month)) {
+          await ph.syncPath(f.ticketPhotoPath);
+        }
+      }
+    }
+    for (final d in await db.getDrivers(includeArchived: true)) {
+      for (final path in driverPhotoPaths(d)) {
+        await ph.syncPath(path);
+      }
+    }
+  }
+
   // ---------------- Push individual (se llama tras cada alta/edición/baja) ----------------
 
   Future<void> pushVehicle(Vehicle v) async {
@@ -141,6 +186,7 @@ class SyncService {
       // Sin conexión: el cambio ya quedó en SQLite; se sincroniza
       // solo cuando vuelva la conexión.
     }
+    await PhotoSyncService.instance.uploadAll(vehiclePhotoPaths(v));
   }
 
   Future<void> deleteVehicleRemote(String id) async {
@@ -174,6 +220,7 @@ class SyncService {
       await _firestore!.collection('drivers').doc(d.id).set(d.toMap())
           .timeout(_kWriteTimeout);
     } catch (_) {}
+    await PhotoSyncService.instance.uploadAll(driverPhotoPaths(d));
   }
 
   Future<void> deleteDriverRemote(String id) async {
@@ -187,6 +234,11 @@ class SyncService {
   /// nube, ni siquiera si se llama por error con uno: se ignora.
   Future<void> pushProcedure(Procedure p) async {
     if (!isCloudEnabled) return;
+    // Primero las fotos a la nube (para que, cuando otro dispositivo
+    // vea el trámite, la foto ya esté disponible).
+    for (final path in p.photoPaths) {
+      await PhotoSyncService.instance.uploadIfMissing(path, p.id);
+    }
     try {
       await _firestore!
           .collection('procedures')
@@ -285,6 +337,7 @@ class SyncService {
           .set(p.toMap())
           .timeout(_kWriteTimeout);
     } catch (_) {}
+    await PhotoSyncService.instance.uploadAll([p.photoPath]);
   }
 
   Future<void> deleteObservationPhotoRemote(String id) async {
@@ -303,6 +356,7 @@ class SyncService {
           .set(p.toMap())
           .timeout(_kWriteTimeout);
     } catch (_) {}
+    await PhotoSyncService.instance.uploadAll([p.photoPath]);
   }
 
   Future<void> deleteRecordPhotoRemote(String id) async {
@@ -317,6 +371,7 @@ class SyncService {
       await _firestore!.collection('fuel_logs').doc(f.id).set(f.toMap())
           .timeout(_kWriteTimeout);
     } catch (_) {}
+    await PhotoSyncService.instance.uploadAll([f.ticketPhotoPath]);
   }
 
   Future<void> deleteFuelLogRemote(String id) async {
@@ -520,6 +575,27 @@ class SyncService {
     }
   }
 
+  /// Convierte los nombres de foto que vienen de la nube en rutas
+  /// locales de este dispositivo, descargando las que falten.
+  Future<Procedure> _withLocalPhotos(Procedure remote) async {
+    final paths = <String>[];
+    for (final name in remote.photoPaths) {
+      paths.add(await PhotoSyncService.instance.ensureLocal(name));
+    }
+    return remote.withPhotoPaths(paths);
+  }
+
+  /// Sube las fotos locales que falten en la nube y baja las que falten
+  /// en este dispositivo (por si una subida/descarga anterior falló por
+  /// falta de conexión).
+  Future<void> _repairProcedurePhotos(DatabaseHelper db) async {
+    for (final proc in await db.getProcedures()) {
+      for (final path in proc.photoPaths) {
+        await PhotoSyncService.instance.syncPath(path);
+      }
+    }
+  }
+
   /// Igual que [_mergeVehicles] pero para trámites: gana siempre la
   /// edición más reciente (updatedAt) y lo borrado definitivamente no
   /// vuelve a aparecer.
@@ -544,7 +620,7 @@ class SyncService {
       final local = localById[id];
       final remote = remoteById[id];
       if (local == null && remote != null) {
-        await db.insertProcedure(remote);
+        await db.insertProcedure(await _withLocalPhotos(remote));
       } else if (remote == null && local != null) {
         await _firestore!
             .collection('procedures')
@@ -552,7 +628,7 @@ class SyncService {
             .set(local.toCloudMap());
       } else if (local != null && remote != null) {
         if (remote.updatedAt.isAfter(local.updatedAt)) {
-          await db.insertProcedure(remote.keepingPhotosFrom(local));
+          await db.insertProcedure(await _withLocalPhotos(remote));
         } else if (local.updatedAt.isAfter(remote.updatedAt)) {
           await _firestore!
               .collection('procedures')
@@ -619,6 +695,7 @@ class SyncService {
       await _mergeVehicles(db, tomb);
       await _mergeDrivers(db, tomb);
       await _mergeProcedures(db, tomb);
+      await _repairProcedurePhotos(db);
       await _mergeAppearances(db);
 
       // A partir de acá, releemos vehículos/choferes ya fusionados,
@@ -771,6 +848,10 @@ class SyncService {
       for (final doc in remoteAuditLog.docs) {
         await db.insertAuditLog(AuditLog.fromMap(doc.data()));
       }
+
+      try {
+        await _syncAllPhotos(db);
+      } catch (_) {}
 
       lastSyncedAt = DateTime.now();
     } catch (_) {

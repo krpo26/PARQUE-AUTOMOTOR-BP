@@ -1,3 +1,4 @@
+import '../../services/photo_sync_service.dart';
 import '../../widgets/delete_or_move_dialog.dart';
 import 'dart:io';
 
@@ -267,11 +268,13 @@ class _DriverFormScreenState extends State<DriverFormScreen> {
                       radius: 52,
                       backgroundColor: Colors.grey.shade200,
                       backgroundImage: (_photoPath != null &&
-                              File(_photoPath!).existsSync())
-                          ? FileImage(File(_photoPath!))
+                              File(PhotoSyncService.resolve(_photoPath)!)
+                                  .existsSync())
+                          ? FileImage(File(PhotoSyncService.resolve(_photoPath)!))
                           : null,
                       child: (_photoPath == null ||
-                              !File(_photoPath!).existsSync())
+                              !File(PhotoSyncService.resolve(_photoPath)!)
+                                  .existsSync())
                           ? Icon(
                               resolveEntityIcon(
                                   kDriverIconChoices, _iconKey, Icons.person),
@@ -435,7 +438,9 @@ class _LicensePhotoTile extends StatelessWidget {
     required this.onTap,
   });
 
-  bool get _hasPhoto => photoPath != null && File(photoPath!).existsSync();
+  bool get _hasPhoto =>
+      photoPath != null &&
+      File(PhotoSyncService.resolve(photoPath)!).existsSync();
 
   void _openFullscreen(BuildContext context) {
     if (!_hasPhoto) return;
@@ -447,7 +452,7 @@ class _LicensePhotoTile extends StatelessWidget {
           backgroundColor: Colors.black,
           body: Center(
             child: InteractiveViewer(
-              child: Image.file(File(photoPath!)),
+              child: Image.file(File(PhotoSyncService.resolve(photoPath)!)),
             ),
           ),
         ),
@@ -476,7 +481,8 @@ class _LicensePhotoTile extends StatelessWidget {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: _hasPhoto
-                    ? Image.file(File(photoPath!), fit: BoxFit.cover)
+                    ? Image.file(File(PhotoSyncService.resolve(photoPath)!),
+                        fit: BoxFit.cover)
                     : Icon(Icons.badge_outlined, color: Colors.grey.shade500),
               ),
               const SizedBox(width: 12),

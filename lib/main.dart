@@ -13,6 +13,7 @@ import 'screens/auth_gate.dart';
 import 'services/background_service.dart';
 import 'services/drive_backup_service.dart';
 import 'services/notification_service.dart';
+import 'services/photo_sync_service.dart';
 import 'services/screenshot_protection_service.dart';
 import 'theme/app_theme.dart';
 import 'services/sync_service.dart';
@@ -25,6 +26,8 @@ Future<void> main() async {
   // Bloquea capturas/grabación de pantalla para todos los usuarios,
   // desde el primer instante que se abre la app.
   await ScreenshotProtectionService.enable();
+  // Carpeta local de fotos (para ubicar las fotos de cualquier registro).
+  await PhotoSyncService.instance.init();
   await NotificationService.instance.init();
   // Si Firebase no está configurado (ver README), esto falla en
   // silencio y la app sigue funcionando 100% offline con SQLite.

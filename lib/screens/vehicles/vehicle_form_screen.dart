@@ -1,3 +1,4 @@
+import '../../services/photo_sync_service.dart';
 import '../../widgets/delete_or_move_dialog.dart';
 import 'dart:async';
 import 'dart:io';
@@ -315,8 +316,11 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: (_photoPath != null && File(_photoPath!).existsSync())
-                      ? Image.file(File(_photoPath!), fit: BoxFit.cover)
+                  child: (_photoPath != null &&
+                          File(PhotoSyncService.resolve(_photoPath)!)
+                              .existsSync())
+                      ? Image.file(File(PhotoSyncService.resolve(_photoPath)!),
+                          fit: BoxFit.cover)
                       : Icon(Icons.local_shipping,
                           size: 40, color: Colors.grey.shade500),
                 ),

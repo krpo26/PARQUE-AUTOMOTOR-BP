@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../services/image_picker_service.dart';
+import '../services/photo_sync_service.dart';
 
 /// Un ítem de la galería: un id (para poder borrarlo) y la ruta local
 /// de la foto en el dispositivo.
@@ -23,6 +24,9 @@ class PhotoGallerySection extends StatelessWidget {
   final bool readOnly;
   final Future<void> Function(String path) onAdd;
   final Future<void> Function(String id) onDelete;
+  // Tamaño/calidad con que se comprime la foto al elegirla.
+  final double maxWidth;
+  final int imageQuality;
 
   const PhotoGallerySection({
     super.key,
@@ -31,6 +35,8 @@ class PhotoGallerySection extends StatelessWidget {
     required this.readOnly,
     required this.onAdd,
     required this.onDelete,
+    this.maxWidth = 1280,
+    this.imageQuality = 60,
   });
 
   Future<void> _pickAndAdd(BuildContext context) async {
@@ -54,7 +60,11 @@ class PhotoGallerySection extends StatelessWidget {
       ),
     );
     if (source == null) return;
-    final path = await ImagePickerService.pickAndSave(fromCamera: source);
+    final path = await ImagePickerService.pickAndSave(
+      fromCamera: source,
+      maxWidth: maxWidth,
+      imageQuality: imageQuality,
+    );
     if (path != null) await onAdd(path);
   }
 
@@ -66,7 +76,7 @@ class PhotoGallerySection extends StatelessWidget {
         child: Stack(
           children: [
             InteractiveViewer(
-              child: Image.file(File(photo.path)),
+              child: Image.file(File(PhotoSyncService.resolve(photo.path)!)),
             ),
             Positioned(
               top: 4,
@@ -142,8 +152,9 @@ class PhotoGallerySection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: File(photo.path).existsSync()
-                      ? Image.file(File(photo.path), fit: BoxFit.cover)
+                  child: File(PhotoSyncService.resolve(photo.path)!).existsSync()
+                      ? Image.file(File(PhotoSyncService.resolve(photo.path)!),
+                          fit: BoxFit.cover)
                       : Icon(Icons.broken_image_outlined,
                           color: Colors.grey.shade500),
                 ),

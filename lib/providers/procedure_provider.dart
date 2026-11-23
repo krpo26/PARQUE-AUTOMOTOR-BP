@@ -7,6 +7,7 @@ import '../models/complex.dart';
 import '../models/procedure.dart';
 import '../services/audit_service.dart';
 import '../services/database_helper.dart';
+import '../services/photo_sync_service.dart';
 import '../services/sync_service.dart';
 
 /// Estado de los trámites (pedidos de service, compras, arreglos…) del
@@ -76,7 +77,19 @@ class ProcedureProvider extends ChangeNotifier {
 
   Future<void> updateProcedure(Procedure p) async {
     final updated = p.copyWith(); // renueva updatedAt
+    // Fotos que se quitaron en esta edición: se borran también de la nube.
+    final before = (await DatabaseHelper.instance.getProcedures())
+        .where((x) => x.id == p.id)
+        .toList();
+    final removed = before.isEmpty
+        ? <String>[]
+        : before.first.photoPaths
+            .where((x) => !updated.photoPaths.contains(x))
+            .toList();
     await DatabaseHelper.instance.updateProcedure(updated);
+    for (final path in removed) {
+      unawaited(PhotoSyncService.instance.deleteRemote(path));
+    }
     await load();
     unawaited(SyncService.instance.pushProcedure(updated));
     unawaited(AuditService.log(
@@ -88,6 +101,9 @@ class ProcedureProvider extends ChangeNotifier {
 
   Future<void> deleteProcedure(Procedure p) async {
     await DatabaseHelper.instance.deleteProcedure(p.id);
+    for (final path in p.photoPaths) {
+      unawaited(PhotoSyncService.instance.deleteRemote(path));
+    }
     await DatabaseHelper.instance.insertTombstone('procedure', p.id);
     await load();
     unawaited(SyncService.instance.deleteProcedureRemote(p.id));
