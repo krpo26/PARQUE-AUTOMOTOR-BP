@@ -51,7 +51,12 @@ workflows:
           storeFile=$APP_DIR/android/app/fleetapp-release.keystore.jks
           EOF
           else
-            echo "Aviso: no hay variables de keystore. Este build se firma con la key de debug y NO se instalará como actualización sobre versiones firmadas con la keystore propia."
+            # Sin keystore propia, Codemagic firma con una key de debug
+            # NUEVA en cada build: el APK sale distinto cada vez y
+            # Android pide desinstalar. Mejor frenar el build que
+            # generar un APK que no se puede actualizar.
+            echo "ERROR: falta CM_KEYSTORE (grupo keystore_credentials). Sin la keystore propia el APK no se puede instalar como actualización."
+            exit 1
           fi
       - name: Obtener dependencias
         script: |
@@ -94,6 +99,12 @@ workflows:
           fi
           resumen /tmp/build2.log
           exit 1
+      - name: Mostrar firma del APK (debe ser SIEMPRE la misma)
+        script: |
+          cd $APP_DIR
+          APK=$(ls build/app/outputs/flutter-apk/*release*.apk | head -n 1)
+          echo "APK: $APK"
+          keytool -printcert -jarfile "$APK" | grep -E "Owner|SHA1|SHA256"
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
       - fleet_app/build/app/outputs/flutter-apk/*.apk
