@@ -90,28 +90,30 @@ class Procedure {
     );
   }
 
-  /// Versión para la nube: de las fotos solo viaja el NOMBRE de cada
-  /// archivo (la foto en sí está en la colección procedure_photos de Firestore, ver
-  /// PhotoSyncService); cada dispositivo arma su propia ruta local.
-  Map<String, dynamic> toCloudMap() => toMap()
-    ..['photo_paths'] = jsonEncode([
-      for (final path in photoPaths) path.split(RegExp(r'[\\/]')).last,
-    ]);
+  /// Copia de este trámite (misma fecha de edición) que conserva las
+  /// fotos locales de [local]: las fotos viven solo en el dispositivo
+  /// donde se sacaron, así que al traer una versión de la nube no
+  /// deben perderse.
+  Procedure keepingPhotosFrom(Procedure? local) {
+    if (local == null || local.photoPaths.isEmpty) return this;
+    return Procedure(
+      id: id,
+      type: type,
+      startDate: startDate,
+      status: status,
+      fileNumber: fileNumber,
+      presentedAt: presentedAt,
+      complexId: complexId,
+      vehicleId: vehicleId,
+      endDate: endDate,
+      updatedAt: updatedAt,
+      photoPaths: local.photoPaths,
+    );
+  }
 
-  /// Copia con otras rutas de fotos, conservando la fecha de edición.
-  Procedure withPhotoPaths(List<String> paths) => Procedure(
-        id: id,
-        type: type,
-        startDate: startDate,
-        status: status,
-        fileNumber: fileNumber,
-        presentedAt: presentedAt,
-        complexId: complexId,
-        vehicleId: vehicleId,
-        endDate: endDate,
-        updatedAt: updatedAt,
-        photoPaths: paths,
-      );
+  /// Versión para la nube: sin las rutas de fotos (no sirven en otro
+  /// dispositivo).
+  Map<String, dynamic> toCloudMap() => toMap()..remove('photo_paths');
 
   Map<String, dynamic> toMap() {
     return {

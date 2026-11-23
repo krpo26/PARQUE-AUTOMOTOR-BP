@@ -12,15 +12,11 @@ import 'package:uuid/uuid.dart';
 class ImagePickerService {
   static final _picker = ImagePicker();
 
-  static Future<String?> pickAndSave({
-    required bool fromCamera,
-    double maxWidth = 1600,
-    int imageQuality = 85,
-  }) async {
+  static Future<String?> pickAndSave({required bool fromCamera}) async {
     final XFile? picked = await _picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-      maxWidth: maxWidth,
-      imageQuality: imageQuality,
+      maxWidth: 1600,
+      imageQuality: 85,
     );
     if (picked == null) return null;
 

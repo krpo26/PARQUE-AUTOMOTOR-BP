@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../models/procedure.dart';
 import '../../providers/procedure_provider.dart';
 import '../../providers/vehicle_provider.dart';
-import '../../services/photo_sync_service.dart';
 import '../../widgets/photo_gallery_section.dart';
 
 /// Alta / edición / detalle de un trámite.
@@ -336,23 +333,7 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
                 for (final path in _photoPaths)
                   GalleryPhoto(id: path, path: path),
               ],
-              // Más chica y comprimida para poder compartirla con los
-              // demás dispositivos (límite de ~650 KB por foto).
-              maxWidth: 1280,
-              imageQuality: 60,
-              onAdd: (path) async {
-                setState(() => _photoPaths.add(path));
-                if (File(path).lengthSync() >
-                        PhotoSyncService.kMaxPhotoBytes &&
-                    mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text(
-                        'La foto es muy pesada: se guarda en este celular '
-                        'pero no se podrá compartir con los demás. Probá '
-                        'sacarla de nuevo con la cámara.'),
-                  ));
-                }
-              },
+              onAdd: (path) async => setState(() => _photoPaths.add(path)),
               onDelete: (id) async => setState(() => _photoPaths.remove(id)),
             ),
             if (!readOnly) ...[
