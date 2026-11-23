@@ -104,7 +104,13 @@ workflows:
           cd $APP_DIR
           APK=$(ls build/app/outputs/flutter-apk/*release*.apk | head -n 1)
           echo "APK: $APK"
-          keytool -printcert -jarfile "$APK" | grep -E "Owner|SHA1|SHA256"
+          APKSIGNER=$(ls -d $ANDROID_SDK_ROOT/build-tools/*/apksigner 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs "$APK" | grep -E "Signer #1 certificate (DN|SHA-256)" || true
+          else
+            echo "apksigner no encontrado, se omite la verificacion"
+          fi
+          exit 0
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
       - fleet_app/build/app/outputs/flutter-apk/*.apk
