@@ -5,7 +5,7 @@ rules_version = '2';
 // CÓMO APLICARLAS: consola de Firebase → Storage → Reglas → pegar este
 // archivo completo → Publicar. Pasos completos en SEGURIDAD.md.
 //
-// La app SOLO escribe respaldos en backups/ (ver backup_service.dart) y
+// La app escribe respaldos en backups/ (ver backup_service.dart) y
 // nunca los lee desde Storage. Por eso: nadie puede leer ni borrar nada
 // desde un cliente (el admin los ve desde la consola de Firebase, que
 // no pasa por estas reglas). Los respaldos con fecha se pueden crear

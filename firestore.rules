@@ -79,7 +79,30 @@ service cloud.firestore {
         && reqStr('id', 100) && optStr('type', 100) && optStr('status', 100)
         && optStr('file_number', 100) && optStr('complex_id', 100)
         && optStr('vehicle_id', 100) && optStr('end_date', 40)
-        && optStr('presented_at', 300);
+        && optStr('presented_at', 300) && optStr('photo_paths', 5000);
+    }
+    // Fotos de TODA la app (trámites, choferes, carnets, documentos de
+    // vehículos, observaciones, mantenimiento, tickets). El id del
+    // documento es el nombre del archivo (UUID aleatorio). Solo se
+    // puede leer un documento puntual (get): NO se puede listar la
+    // colección. La foto viaja en base64 (la app la limita a ~650 KB).
+    match /shared_photos/{id} {
+      allow get, delete: if signedIn();
+      allow create, update: if signedIn() && maxKeys(6)
+        && reqStr('id', 120) && body().id == id
+        && optStr('owner_id', 100)
+        && body().get('data_b64', null) is string
+        && body().get('data_b64', '').size() <= 900000;
+    }
+    // Colección de una versión anterior (solo trámites): se sigue
+    // pudiendo leer y borrar.
+    match /procedure_photos/{id} {
+      allow get, delete: if signedIn();
+      allow create, update: if signedIn() && maxKeys(6)
+        && reqStr('id', 120) && body().id == id
+        && optStr('procedure_id', 100)
+        && body().get('data_b64', null) is string
+        && body().get('data_b64', '').size() <= 900000;
     }
     match /maintenance_records/{id} {
       allow read, delete: if signedIn();

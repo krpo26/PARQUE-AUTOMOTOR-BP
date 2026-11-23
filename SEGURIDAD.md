@@ -315,3 +315,15 @@ mostrarse con otro nombre en los ajustes de Android.
 - [ ] Celulares migrados a la versión instalada desde Play (con respaldo JSON)
 - [ ] Huellas de Play cargadas en Firebase y en la API key
 - [ ] App Check configurado, métricas revisadas y *Enforce* activado
+
+
+## Fotos compartidas entre dispositivos
+
+Todas las fotos de la app (trámites, choferes, carnets, documentos y fotos de
+vehículos, observaciones, mantenimiento y tickets de combustible) se guardan
+en Firestore (colección `shared_photos`), sin Storage y sin Drive, bajo las
+mismas reglas que el resto de los datos. **Hay que volver a publicar
+`firestore.rules`** (Firebase → Firestore → Reglas → pegar → Publicar); sin eso
+las fotos no se suben ni se bajan. Las reglas permiten leer una foto puntual
+pero NO listar la colección, y los nombres son UUID aleatorios. Para el bloqueo
+real contra apps ajenas, activá App Check (paso 4).

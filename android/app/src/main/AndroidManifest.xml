@@ -23,10 +23,15 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
+    <!-- allowBackup=false: las fotos y la base de datos de la app NO se
+         copian a la nube de Google ni se pueden extraer con adb backup
+         o al transferir el celular. -->
     <application
         android:label="PARQUE AUTOMOTOR BENJAMIN PAZ"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
