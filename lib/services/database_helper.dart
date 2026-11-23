@@ -38,7 +38,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 19,
+      version: 20,
       onConfigure: (db) async {
         // Sin esto, las cláusulas "ON DELETE CASCADE" de las tablas
         // (mantenimiento, combustible, ficha técnica, fotos) quedan
@@ -369,6 +369,12 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE procedures ADD COLUMN presented_at TEXT');
       } catch (_) {}
     }
+    if (oldVersion < 20) {
+      // Trámites: fotos del archivo / informe / expediente (JSON).
+      try {
+        await db.execute('ALTER TABLE procedures ADD COLUMN photo_paths TEXT');
+      } catch (_) {}
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -541,7 +547,8 @@ class DatabaseHelper {
         vehicle_id TEXT,
         end_date TEXT,
         presented_at TEXT,
-        updated_at TEXT
+        updated_at TEXT,
+        photo_paths TEXT
       )
     ''');
 

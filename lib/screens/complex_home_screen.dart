@@ -14,7 +14,6 @@ import '../providers/vehicle_provider.dart';
 import '../services/database_helper.dart';
 import '../services/notification_service.dart';
 import 'admin/admin_panel_screen.dart';
-import 'auth/login_screen.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
 import 'users/user_management_screen.dart';
@@ -167,13 +166,10 @@ class _ComplexHomeScreenState extends State<ComplexHomeScreen> {
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
             onPressed: () async {
+              final nav = Navigator.of(context);
               await context.read<AuthProvider>().logout();
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
+              // AuthGate muestra el login al cambiar la sesión.
+              nav.popUntil((route) => route.isFirst);
             },
           ),
         ],

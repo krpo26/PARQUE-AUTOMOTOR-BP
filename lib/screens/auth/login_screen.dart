@@ -4,9 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../main.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/legal_terms_service.dart';
-import '../complex_home_screen.dart';
-import '../legal_terms_screen.dart';
 import 'admin_access_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -32,43 +29,25 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
 
+    // La navegación posterior al login la decide AuthGate según el
+    // estado (login → términos legales → inicio). Acá NO se empuja
+    // ninguna pantalla: antes se hacía con pushAndRemoveUntil y el
+    // "onAccepted" usaba un context de una pantalla ya destruida, por
+    // eso al aceptar los términos nunca avanzaba.
+    final nav = Navigator.of(context);
     final ok = await context
         .read<AuthProvider>()
         .login(_userCtrl.text.trim(), _passCtrl.text);
 
-    if (!mounted) return;
-
     if (ok) {
-      final username = _userCtrl.text.trim();
-      final accepted = await LegalTermsService.instance.hasAccepted(username);
-      if (!mounted) return;
-      if (accepted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const ComplexHomeScreen()),
-          (route) => false,
-        );
-      } else {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => LegalTermsScreen(
-              username: username,
-              onAccepted: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const ComplexHomeScreen()),
-                  (route) => false,
-                );
-              },
-            ),
-          ),
-          (route) => false,
-        );
-      }
-    } else {
-      setState(() {
-        _loading = false;
-        _error = 'Usuario o contraseña incorrectos';
-      });
+      nav.popUntil((route) => route.isFirst);
+      return;
     }
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _error = 'Usuario o contraseña incorrectos';
+    });
   }
 
   @override

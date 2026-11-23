@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../../models/procedure.dart';
 import '../../providers/procedure_provider.dart';
 import '../../providers/vehicle_provider.dart';
+import '../../services/photo_sync_service.dart';
+import '../../widgets/photo_gallery_section.dart';
 
 /// Alta / edición / detalle de un trámite.
 /// [procedure] null = alta. [readOnly] true = usuario común (solo ve).
@@ -31,6 +35,7 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
   late DateTime _startDate;
   String? _vehicleId; // móvil asociado (null = sin móvil)
   DateTime? _endDate; // fecha de finalización (null = sin fecha)
+  List<String> _photoPaths = []; // fotos del archivo / informe / expediente
 
   bool get _isEditing => widget.procedure != null;
 
@@ -59,6 +64,7 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
       _presentedAtCtrl = TextEditingController(text: p.presentedAt);
       _vehicleId = p.vehicleId;
       _endDate = p.endDate;
+      _photoPaths = [...p.photoPaths];
     }
   }
 
@@ -126,6 +132,7 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
         clearVehicle: _vehicleId == null,
         endDate: _endDate,
         clearEndDate: _endDate == null,
+        photoPaths: _photoPaths,
       ));
     } else {
       await provider.addProcedure(
@@ -136,6 +143,7 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
         presentedAt: presentedAt,
         vehicleId: _vehicleId,
         endDate: _endDate,
+        photoPaths: _photoPaths,
       );
     }
     if (mounted) Navigator.pop(context);
@@ -319,6 +327,33 @@ class _ProcedureFormScreenState extends State<ProcedureFormScreen> {
                 labelText: 'Dónde se presentó (opcional)',
                 border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 16),
+            PhotoGallerySection(
+              title: 'Fotos del archivo, informe o expediente',
+              readOnly: readOnly,
+              photos: [
+                for (final path in _photoPaths)
+                  GalleryPhoto(id: path, path: path),
+              ],
+              // Más chica y comprimida para poder compartirla con los
+              // demás dispositivos (límite de ~650 KB por foto).
+              maxWidth: 1280,
+              imageQuality: 60,
+              onAdd: (path) async {
+                setState(() => _photoPaths.add(path));
+                if (File(path).lengthSync() >
+                        PhotoSyncService.kMaxPhotoBytes &&
+                    mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text(
+                        'La foto es muy pesada: se guarda en este celular '
+                        'pero no se podrá compartir con los demás. Probá '
+                        'sacarla de nuevo con la cámara.'),
+                  ));
+                }
+              },
+              onDelete: (id) async => setState(() => _photoPaths.remove(id)),
             ),
             if (!readOnly) ...[
               const SizedBox(height: 24),

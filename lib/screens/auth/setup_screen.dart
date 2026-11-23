@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../services/auth_service.dart';
-import 'login_screen.dart';
 import '../../widgets/app_logo.dart';
 
 /// Crea el usuario administrador único ("god mode"). Solo se llega
@@ -40,10 +39,11 @@ class _SetupScreenState extends State<SetupScreen> {
         .createGodUser(_userCtrl.text.trim(), _passCtrl.text);
 
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen(justCreated: true)),
-      (route) => false,
-    );
+    // Vuelve al login raíz (AuthGate); el usuario ya está creado.
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    messenger.showSnackBar(const SnackBar(
+        content: Text('Usuario creado con éxito. Iniciá sesión para continuar.')));
   }
 
   @override

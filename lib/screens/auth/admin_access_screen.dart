@@ -8,7 +8,6 @@ import '../../main.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/password_hasher.dart';
-import '../complex_home_screen.dart';
 import 'setup_screen.dart';
 
 /// Se accede desde un botón aparte en la pantalla de login. Los usuarios
@@ -259,10 +258,8 @@ class _GodLoginFormState extends State<_GodLoginForm> {
     if (!mounted) return;
 
     if (ok && auth.isGod) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ComplexHomeScreen()),
-        (route) => false,
-      );
+      // AuthGate muestra los términos legales (si faltan) y el inicio.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } else {
       if (ok) {
         // Las credenciales son válidas pero no son del usuario god:

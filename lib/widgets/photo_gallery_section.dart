@@ -23,6 +23,9 @@ class PhotoGallerySection extends StatelessWidget {
   final bool readOnly;
   final Future<void> Function(String path) onAdd;
   final Future<void> Function(String id) onDelete;
+  // Tamaño/calidad con que se comprime la foto al elegirla.
+  final double maxWidth;
+  final int imageQuality;
 
   const PhotoGallerySection({
     super.key,
@@ -31,6 +34,8 @@ class PhotoGallerySection extends StatelessWidget {
     required this.readOnly,
     required this.onAdd,
     required this.onDelete,
+    this.maxWidth = 1600,
+    this.imageQuality = 85,
   });
 
   Future<void> _pickAndAdd(BuildContext context) async {
@@ -54,7 +59,11 @@ class PhotoGallerySection extends StatelessWidget {
       ),
     );
     if (source == null) return;
-    final path = await ImagePickerService.pickAndSave(fromCamera: source);
+    final path = await ImagePickerService.pickAndSave(
+      fromCamera: source,
+      maxWidth: maxWidth,
+      imageQuality: imageQuality,
+    );
     if (path != null) await onAdd(path);
   }
 

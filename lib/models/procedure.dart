@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'complex.dart';
 
 /// Un trámite administrativo del parque automotor: pedido de service,
@@ -38,6 +40,9 @@ class Procedure {
   final DateTime? endDate; // Fecha de finalización (null = sin fecha)
   // Última edición: al sincronizar gana la versión más reciente.
   final DateTime updatedAt;
+  // Fotos del archivo / informe / expediente (rutas locales en el
+  // dispositivo, igual que las fotos de documentos de los vehículos).
+  final List<String> photoPaths;
 
   Procedure({
     required this.id,
@@ -50,6 +55,7 @@ class Procedure {
     this.vehicleId,
     this.endDate,
     DateTime? updatedAt,
+    this.photoPaths = const [],
   }) : updatedAt = updatedAt ?? DateTime.now();
 
   /// true mientras el trámite sigue abierto (no finalizado ni rechazado).
@@ -67,6 +73,7 @@ class Procedure {
     DateTime? endDate,
     bool clearEndDate = false,
     DateTime? updatedAt,
+    List<String>? photoPaths,
   }) {
     return Procedure(
       id: id,
@@ -79,8 +86,32 @@ class Procedure {
       vehicleId: clearVehicle ? null : (vehicleId ?? this.vehicleId),
       endDate: clearEndDate ? null : (endDate ?? this.endDate),
       updatedAt: updatedAt ?? DateTime.now(),
+      photoPaths: photoPaths ?? this.photoPaths,
     );
   }
+
+  /// Versión para la nube: de las fotos solo viaja el NOMBRE de cada
+  /// archivo (la foto en sí está en la colección procedure_photos de Firestore, ver
+  /// PhotoSyncService); cada dispositivo arma su propia ruta local.
+  Map<String, dynamic> toCloudMap() => toMap()
+    ..['photo_paths'] = jsonEncode([
+      for (final path in photoPaths) path.split(RegExp(r'[\\/]')).last,
+    ]);
+
+  /// Copia con otras rutas de fotos, conservando la fecha de edición.
+  Procedure withPhotoPaths(List<String> paths) => Procedure(
+        id: id,
+        type: type,
+        startDate: startDate,
+        status: status,
+        fileNumber: fileNumber,
+        presentedAt: presentedAt,
+        complexId: complexId,
+        vehicleId: vehicleId,
+        endDate: endDate,
+        updatedAt: updatedAt,
+        photoPaths: paths,
+      );
 
   Map<String, dynamic> toMap() {
     return {
@@ -94,6 +125,7 @@ class Procedure {
       'vehicle_id': vehicleId,
       'end_date': endDate?.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'photo_paths': jsonEncode(photoPaths),
     };
   }
 
@@ -116,6 +148,16 @@ class Procedure {
       updatedAt: map['updated_at'] != null
           ? DateTime.parse(map['updated_at'] as String)
           : DateTime.fromMillisecondsSinceEpoch(0),
+      photoPaths: _decodePhotos(map['photo_paths']),
     );
+  }
+
+  static List<String> _decodePhotos(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is List) return list.whereType<String>().toList();
+    } catch (_) {}
+    return const [];
   }
 }
